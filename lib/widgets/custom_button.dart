@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 class CustomButton extends StatelessWidget {
   final String label;
   final IconData? icon;
@@ -12,7 +14,7 @@ class CustomButton extends StatelessWidget {
     required this.label,
     this.icon,
     required this.onPressed,
-    this.color = Colors.blue,
+    this.color = AppTheme.primary,
     this.isFullWidth = true,
   });
 
@@ -24,7 +26,9 @@ class CustomButton extends StatelessWidget {
       width: isFullWidth ? double.infinity : (isTablet ? 400 : double.infinity),
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: icon != null ? Icon(icon, color: Colors.white) : const SizedBox.shrink(),
+        icon: icon != null
+            ? Icon(icon, color: Colors.white)
+            : const SizedBox.shrink(),
         label: Text(
           label,
           style: const TextStyle(
@@ -36,7 +40,7 @@ class CustomButton extends StatelessWidget {
           backgroundColor: color,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppTheme.radius),
           ),
         ),
       ),

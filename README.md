@@ -60,4 +60,4 @@ Auteur
 
 [Nadège TOVIHOUANDE] – [https://github.com/Chariane/]
 
-Projet fait avec Dart/Flutter, dans le cadre d'un exercice. 😊
+Projet fait avec Dart/Flutter, dans le cadre d'un exercice. 
