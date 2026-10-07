@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/garage.dart';
 import '../theme/app_theme.dart';
+import '../core/localization/app_localizations.dart';
 import 'garage_image.dart';
 
 class GarageCard extends StatelessWidget {
@@ -14,6 +15,7 @@ class GarageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -33,6 +35,7 @@ class GarageCard extends StatelessWidget {
                       imagePath: garage.imageUrl,
                       width: 96,
                       height: 96,
+                      semanticLabel: garage.name,
                     ),
                   ),
                   Positioned(
@@ -62,7 +65,7 @@ class GarageCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            garage.isOpen ? 'OUVERT' : 'FERMÉ',
+                            garage.isOpen ? l10n.t('open') : l10n.t('closed'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 9,
@@ -111,7 +114,9 @@ class GarageCard extends StatelessWidget {
                             vertical: 1.5,
                           ),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.1,
+                            ),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Row(
@@ -165,16 +170,20 @@ class GarageCard extends StatelessWidget {
                         children: [
                           _MiniBadge(
                             icon: Icons.star_rounded,
-                            label: '${garage.rating.toStringAsFixed(1)} (${garage.reviewCount})',
+                            label:
+                                '${garage.rating.toStringAsFixed(1)} (${garage.reviewCount})',
                             color: AppTheme.accent,
                           ),
                           const SizedBox(width: 4),
-                          _MiniBadge(
-                            icon: Icons.near_me_rounded,
-                            label: '${garage.distanceKm.toStringAsFixed(1)} km',
-                            color: theme.colorScheme.secondary,
-                          ),
-                          const SizedBox(width: 4),
+                          if (garage.distanceKnown) ...[
+                            _MiniBadge(
+                              icon: Icons.near_me_rounded,
+                              label:
+                                  '${garage.distanceKm.toStringAsFixed(1)} km',
+                              color: theme.colorScheme.secondary,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
                           _MiniBadge(
                             icon: Icons.payments_rounded,
                             label: garage.priceLevel,
@@ -204,14 +213,22 @@ class GarageCard extends StatelessWidget {
                           child: FilledButton(
                             onPressed: onTap,
                             style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 9),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                              ),
                               visualDensity: VisualDensity.compact,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text('Voir', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                                Text(
+                                  l10n.t('view'),
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                                 SizedBox(width: 2),
                                 Icon(Icons.arrow_forward_rounded, size: 11),
                               ],
@@ -268,4 +285,3 @@ class _MiniBadge extends StatelessWidget {
     );
   }
 }
-

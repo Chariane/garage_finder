@@ -8,7 +8,7 @@
 PRODUCT_NAME = garage_finder
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.garageFinder
+PRODUCT_BUNDLE_IDENTIFIER = com.chariane.garagefinder
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Nadege TOVIHOUANDE. All rights reserved.

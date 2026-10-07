@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../data/garage_data.dart';
-import '../models/garage.dart';
-import '../theme/app_theme.dart';
+import 'package:provider/provider.dart';
+
+import '../controllers/garage_controller.dart';
+import '../core/localization/app_localizations.dart';
+import '../utils/garage_filters.dart';
 import '../widgets/garage_card.dart';
-import '../widgets/search_bar.dart';
+import '../widgets/location_search_dialog.dart';
 
 class ListScreen extends StatefulWidget {
   const ListScreen({super.key});
@@ -14,20 +16,7 @@ class ListScreen extends StatefulWidget {
 }
 
 class _ListScreenState extends State<ListScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  final List<Garage> _allGarages = garages;
-  List<Garage> _filteredGarages = [];
-  String _selectedCity = 'Tout le Bénin';
-  String _selectedSpecialty = 'Tous';
-  String _sortMode = 'distance';
-  bool _sosMode = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredGarages = List.of(_allGarages)
-      ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-  }
+  final _searchController = TextEditingController();
 
   @override
   void dispose() {
@@ -35,398 +24,316 @@ class _ListScreenState extends State<ListScreen> {
     super.dispose();
   }
 
-  List<String> get _specialties {
-    final values =
-        _allGarages.map((garage) => garage.specialty).toSet().toList()..sort();
-    return ['Tous', ...values];
-  }
-
-  List<String> get _cities {
-    final values = _allGarages.map((garage) => garage.city).toSet().toList()
-      ..sort();
-    return ['Tout le Bénin', ...values];
-  }
-
-  int _responseMinutes(Garage garage) {
-    return int.tryParse(garage.responseTime.replaceAll(RegExp(r'\D'), '')) ??
-        999;
-  }
-
-  void _applyFilters() {
-    final query = _searchController.text.trim().toLowerCase();
-
-    setState(() {
-      _filteredGarages = _allGarages.where((garage) {
-        final matchesQuery =
-            query.isEmpty ||
-            garage.name.toLowerCase().contains(query) ||
-            garage.city.toLowerCase().contains(query) ||
-            garage.address.toLowerCase().contains(query) ||
-            garage.specialty.toLowerCase().contains(query) ||
-            garage.chief.toLowerCase().contains(query) ||
-            garage.description.toLowerCase().contains(query) ||
-            garage.services.any(
-              (service) => service.toLowerCase().contains(query),
-            );
-        final matchesSpecialty =
-            _selectedSpecialty == 'Tous' ||
-            garage.specialty == _selectedSpecialty;
-        final matchesCity =
-            _selectedCity == 'Tout le Bénin' || garage.city == _selectedCity;
-        final matchesSos = !_sosMode || (garage.isOpen && garage.distanceKm <= 10.0);
-
-        return matchesQuery && matchesSpecialty && matchesCity && matchesSos;
-      }).toList();
-
-      _filteredGarages.sort((a, b) {
-        return switch (_sortMode) {
-          'rating' => b.rating.compareTo(a.rating),
-          'response' => _responseMinutes(a).compareTo(_responseMinutes(b)),
-          _ => a.distanceKm.compareTo(b.distanceKm),
-        };
-      });
-    });
-  }
-
-  void _filterGarages(String query) => _applyFilters();
-
-  void _clearSearch() {
-    _searchController.clear();
-    _applyFilters();
-  }
-
-  void _selectSpecialty(String specialty) {
-    _selectedSpecialty = specialty;
-    _applyFilters();
-  }
-
-  void _selectCity(String city) {
-    _selectedCity = city;
-    _applyFilters();
-  }
-
-  void _selectSortMode(String sortMode) {
-    _sortMode = sortMode;
-    _applyFilters();
-  }
-
-  void _toggleSosMode() {
-    setState(() {
-      _sosMode = !_sosMode;
-      if (_sosMode) {
-        _sortMode = 'response';
-      }
-      _applyFilters();
-    });
+  Future<void> _editBudget(
+    GarageController controller,
+    AppLocalizations l10n,
+  ) async {
+    final minimum = TextEditingController(
+      text: controller.minimumPriceCfa?.toString() ?? '',
+    );
+    final maximum = TextEditingController(
+      text: controller.maximumPriceCfa?.toString() ?? '',
+    );
+    final result = await showDialog<({int? minimum, int? maximum})>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.t('budget')),
+        content: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: minimum,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: l10n.t('priceMin')),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: maximum,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: l10n.t('priceMax')),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.t('cancel')),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, (minimum: null, maximum: null)),
+            child: Text(l10n.t('clearSearch')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final min = int.tryParse(minimum.text.trim());
+              final max = int.tryParse(maximum.text.trim());
+              if (min != null && max != null && min > max) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.t('invalidPriceRange'))),
+                );
+                return;
+              }
+              Navigator.pop(context, (minimum: min, maximum: max));
+            },
+            child: Text(l10n.t('save')),
+          ),
+        ],
+      ),
+    );
+    minimum.dispose();
+    maximum.dispose();
+    if (result == null || !mounted) return;
+    controller.setPriceRange(
+      minimumCfa: result.minimum,
+      maximumCfa: result.maximum,
+    );
+    if (controller.hasSearchLocation) {
+      await controller.searchNearby(
+        latitude: controller.userLatitude!,
+        longitude: controller.userLongitude!,
+        radiusMeters: controller.searchRadiusMeters,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<GarageController>();
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final isTablet = MediaQuery.of(context).size.width > 600;
+    final garages = controller.filteredGarages;
+
+    Future<void> chooseSearchLocation() async {
+      final selection = await showDialog<LocationSelection>(
+        context: context,
+        builder: (_) => const LocationSearchDialog(),
+      );
+      if (selection == null || !context.mounted) return;
+      await controller.searchNearby(
+        latitude: selection.latitude,
+        longitude: selection.longitude,
+        radiusMeters: controller.searchRadiusMeters,
+      );
+    }
+
+    Future<void> updateRadius(int? radius) async {
+      if (radius == null) return;
+      if (!controller.hasSearchLocation) {
+        controller.setSearchRadius(radius);
+        return;
+      }
+      await controller.searchNearby(
+        latitude: controller.userLatitude!,
+        longitude: controller.userLongitude!,
+        radiusMeters: radius,
+      );
+    }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Garages & Dépannage'),
-        actions: [
-          IconButton(
-            tooltip: 'Accueil',
-            icon: const Icon(Icons.home_rounded),
-            onPressed: () => context.go('/'),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(l10n.t('garages'))),
       body: Column(
         children: [
-          if (_sosMode)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color: Colors.redAccent.withValues(alpha: 0.12),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          '🚨 Mode Dépannage d’Urgence Actif',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.redAccent,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          'Garages ouverts et proches pour une intervention rapide',
-                          style: TextStyle(fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _toggleSosMode,
-                    child: const Text('Désactiver'),
-                  ),
-                ],
-              ),
-            ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor,
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.dividerColor.withValues(alpha: 0.7),
-                ),
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomSearchBar(
-                        controller: _searchController,
-                        hintText: 'Nom, ville, mécanique, dépannage...',
-                        onChanged: _filterGarages,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilterChip(
-                      selected: _sosMode,
-                      selectedColor: Colors.redAccent.withValues(alpha: 0.2),
-                      side: _sosMode ? const BorderSide(color: Colors.redAccent) : null,
-                      avatar: Icon(
-                        Icons.flash_on_rounded,
-                        size: 16,
-                        color: _sosMode ? Colors.redAccent : theme.colorScheme.primary,
-                      ),
-                      label: Text(
-                        'Panne ⚡',
-                        style: TextStyle(
-                          color: _sosMode ? Colors.redAccent : theme.textTheme.bodyMedium?.color,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      onSelected: (_) => _toggleSosMode(),
-                    ),
-                    if (_searchController.text.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      IconButton.filledTonal(
-                        tooltip: 'Effacer',
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: _clearSearch,
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _cities.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: 6),
-                    itemBuilder: (context, index) {
-                      final city = _cities[index];
-                      final isSelected = city == _selectedCity;
-
-                      return FilterChip(
-                        selected: isSelected,
-                        label: Text(city, style: const TextStyle(fontSize: 12)),
-                        avatar: Icon(
-                          city == 'Tout le Bénin'
-                              ? Icons.public_rounded
-                              : Icons.location_city_rounded,
-                          size: 16,
-                          color: isSelected
-                              ? theme.colorScheme.primary
-                              : theme.textTheme.bodyMedium?.color,
-                        ),
-                        onSelected: (_) => _selectCity(city),
-                      );
-                    },
+                TextField(
+                  controller: _searchController,
+                  onChanged: controller.setQuery,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    labelText: l10n.t('searchHint'),
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: l10n.t('clearSearch'),
+                            onPressed: () {
+                              _searchController.clear();
+                              controller.setQuery('');
+                            },
+                            icon: const Icon(Icons.clear),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 8),
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _specialties.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: 6),
-                    itemBuilder: (context, index) {
-                      final specialty = _specialties[index];
-                      final isSelected = specialty == _selectedSpecialty;
-
-                      return FilterChip(
-                        selected: isSelected,
-                        label: Text(specialty, style: const TextStyle(fontSize: 12)),
-                        avatar: Icon(
-                          specialty == 'Tous'
-                              ? Icons.apps_rounded
-                              : Icons.build_rounded,
-                          size: 16,
-                          color: isSelected
-                              ? theme.colorScheme.primary
-                              : theme.textTheme.bodyMedium?.color,
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: chooseSearchLocation,
+                        icon: const Icon(Icons.my_location),
+                        label: Text(
+                          controller.hasSearchLocation
+                              ? l10n.t('locationFound')
+                              : l10n.t('findNearby'),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        onSelected: (_) => _selectSpecialty(specialty),
-                      );
-                    },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Tooltip(
+                      message: l10n.t('searchRadius'),
+                      child: DropdownButton<int>(
+                        value: controller.searchRadiusMeters,
+                        items: [
+                          for (final radius in [5000, 10000, 25000, 50000])
+                            DropdownMenuItem(
+                              value: radius,
+                              child: Text('${radius ~/ 1000} km'),
+                            ),
+                        ],
+                        onChanged: updateRadius,
+                      ),
+                    ),
+                    if (controller.hasSearchLocation)
+                      IconButton(
+                        tooltip: l10n.t('clearSearch'),
+                        onPressed: controller.clearSearchLocation,
+                        icon: const Icon(Icons.close),
+                      ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _editBudget(controller, l10n),
+                    icon: const Icon(Icons.payments_outlined),
+                    label: Text(l10n.t('budget')),
                   ),
                 ),
                 const SizedBox(height: 10),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                      value: 'distance',
-                      icon: Icon(Icons.near_me_rounded, size: 16),
-                      label: Text('Proche', style: TextStyle(fontSize: 12)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: controller.city,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: l10n.t('allCities'),
+                        ),
+                        items: [
+                          DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text(
+                              l10n.t('allCities'),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          for (final city in controller.cities)
+                            DropdownMenuItem<String?>(
+                              value: city,
+                              child: Text(
+                                city,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: controller.setCity,
+                      ),
                     ),
-                    ButtonSegment(
-                      value: 'rating',
-                      icon: Icon(Icons.star_rounded, size: 16),
-                      label: Text('Note', style: TextStyle(fontSize: 12)),
-                    ),
-                    ButtonSegment(
-                      value: 'response',
-                      icon: Icon(Icons.flash_on_rounded, size: 16),
-                      label: Text('Rapide', style: TextStyle(fontSize: 12)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: controller.specialty,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: l10n.t('allSpecialties'),
+                        ),
+                        items: [
+                          DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text(
+                              l10n.t('allSpecialties'),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          for (final specialty in controller.specialties)
+                            DropdownMenuItem<String?>(
+                              value: specialty,
+                              child: Text(
+                                specialty,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: controller.setSpecialty,
+                      ),
                     ),
                   ],
-                  selected: {_sortMode},
-                  onSelectionChanged: (selection) {
-                    _selectSortMode(selection.first);
-                  },
-                  showSelectedIcon: false,
                 ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _filteredGarages.isEmpty
-                        ? Colors.redAccent
-                        : AppTheme.success,
-                    shape: BoxShape.circle,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    FilterChip(
+                      avatar: const Icon(Icons.flash_on, size: 18),
+                      label: Text(l10n.t('emergency')),
+                      selected: controller.sosOnly,
+                      onSelected: controller.setSosOnly,
+                    ),
+                    const Spacer(),
+                    Flexible(
+                      child: SegmentedButton<GarageSortMode>(
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: GarageSortMode.distance,
+                            icon: const Icon(Icons.near_me),
+                            label: Text(l10n.t('near')),
+                          ),
+                          ButtonSegment(
+                            value: GarageSortMode.rating,
+                            icon: const Icon(Icons.star),
+                            label: Text(l10n.t('rating')),
+                          ),
+                          ButtonSegment(
+                            value: GarageSortMode.response,
+                            icon: const Icon(Icons.bolt),
+                            label: Text(l10n.t('fast')),
+                          ),
+                        ],
+                        selected: {controller.sortMode},
+                        onSelectionChanged: (selection) =>
+                            controller.setSortMode(selection.first),
+                      ),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${garages.length} ${garages.length == 1 ? l10n.t('result') : l10n.t('results')}',
+                    style: theme.textTheme.bodySmall,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${_filteredGarages.length} garage(s) trouvé(s)',
-                  style: theme.textTheme.titleMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
               ],
             ),
           ),
           Expanded(
-            child: _filteredGarages.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off_rounded,
-                          size: 56,
-                          color: theme.colorScheme.primary,
+            child: controller.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : garages.isEmpty
+                ? Center(child: Text(l10n.t('noGarage')))
+                : ListView.builder(
+                    itemCount: garages.length,
+                    itemBuilder: (context, index) {
+                      final garage = garages[index];
+                      return RepaintBoundary(
+                        child: GarageCard(
+                          garage: garage,
+                          onTap: () => context.go('/detail/${garage.id}'),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Aucun garage trouvé',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Essayez d’élargir vos filtres ou de désactiver la recherche d’urgence.',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (isTablet) {
-                        return GridView.builder(
-                          padding: const EdgeInsets.fromLTRB(8, 4, 8, 80),
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 520,
-                            mainAxisExtent: 118,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
-                          itemCount: _filteredGarages.length,
-                          itemBuilder: (context, index) {
-                            final garage = _filteredGarages[index];
-                            return FadeInAnimation(
-                              delay: index * 40,
-                              child: GarageCard(
-                                garage: garage,
-                                onTap: () => context.go('/detail/${garage.id}'),
-                              ),
-                            );
-                          },
-                        );
-                      } else {
-                        return ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(8, 4, 8, 80),
-                          itemCount: _filteredGarages.length,
-                          itemBuilder: (context, index) {
-                            final garage = _filteredGarages[index];
-                            return FadeInAnimation(
-                              delay: index * 40,
-                              child: GarageCard(
-                                garage: garage,
-                                onTap: () => context.go('/detail/${garage.id}'),
-                              ),
-                            );
-                          },
-                        );
-                      }
+                      );
                     },
                   ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class FadeInAnimation extends StatelessWidget {
-  final Widget child;
-  final int delay;
-
-  const FadeInAnimation({super.key, required this.child, this.delay = 0});
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder(
-      duration: const Duration(milliseconds: 400),
-      tween: Tween<double>(begin: 0.0, end: 1.0),
-      curve: Curves.easeOut,
-      child: child,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
     );
   }
 }

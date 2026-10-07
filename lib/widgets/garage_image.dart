@@ -5,6 +5,7 @@ class GarageImage extends StatelessWidget {
   final double? width;
   final double? height;
   final BoxFit fit;
+  final String? semanticLabel;
 
   const GarageImage({
     super.key,
@@ -12,19 +13,38 @@ class GarageImage extends StatelessWidget {
     this.width,
     this.height,
     this.fit = BoxFit.cover,
+    this.semanticLabel,
   });
 
   bool get _isNetworkImage =>
       imagePath.startsWith('http://') || imagePath.startsWith('https://');
 
+  int? _cacheDimension(BuildContext context, double? logicalPixels) {
+    if (logicalPixels == null ||
+        !logicalPixels.isFinite ||
+        logicalPixels <= 0) {
+      return null;
+    }
+    return (logicalPixels * MediaQuery.devicePixelRatioOf(context)).round();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final cacheWidth = _cacheDimension(context, width);
+    final cacheHeight = _cacheDimension(context, height);
+
     if (_isNetworkImage) {
       return Image.network(
         imagePath,
         width: width,
         height: height,
         fit: fit,
+        cacheWidth: cacheWidth,
+        cacheHeight: cacheHeight,
+        semanticLabel: semanticLabel,
+        filterQuality: FilterQuality.medium,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : _fallback(context),
         errorBuilder: (context, error, stackTrace) => _fallback(context),
       );
     }
@@ -34,6 +54,10 @@ class GarageImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
+      cacheWidth: cacheWidth,
+      cacheHeight: cacheHeight,
+      semanticLabel: semanticLabel,
+      filterQuality: FilterQuality.medium,
       errorBuilder: (context, error, stackTrace) => _fallback(context),
     );
   }

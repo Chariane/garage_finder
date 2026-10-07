@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../controllers/garage_controller.dart';
+import '../core/localization/app_localizations.dart';
 import '../models/garage.dart';
-import '../data/garage_data.dart';
 import '../theme/app_theme.dart';
 import '../widgets/garage_image.dart';
 
@@ -23,20 +25,11 @@ class _FormScreenState extends State<FormScreen> {
   bool _isSubmitting = false;
 
   final List<Map<String, String>> _imagePresets = [
+    {'label': 'presetService', 'path': 'assets/images/garage_form_banner.png'},
+    {'label': 'presetCar', 'path': 'assets/images/garage_auto.png'},
+    {'label': 'presetMotorcycle', 'path': 'assets/images/garage_moto.png'},
     {
-      'label': 'Dépannage & Service',
-      'path': 'assets/images/garage_form_banner.png',
-    },
-    {
-      'label': 'Mécanique Auto',
-      'path': 'assets/images/garage_auto.png',
-    },
-    {
-      'label': 'Atelier Moto',
-      'path': 'assets/images/garage_moto.png',
-    },
-    {
-      'label': 'Assistance SOS Panne',
+      'label': 'presetEmergency',
       'path': 'assets/images/garage_breakdown_sos.png',
     },
   ];
@@ -52,10 +45,9 @@ class _FormScreenState extends State<FormScreen> {
   }
 
   void _addGarage() async {
+    final l10n = AppLocalizations.of(context);
     if (_formKey.currentState!.validate()) {
       setState(() => _isSubmitting = true);
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
 
       final newGarage = Garage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -70,16 +62,20 @@ class _FormScreenState extends State<FormScreen> {
         description:
             'Garage professionnel avec service rapide et assistance en cas de panne.',
         sourceUrl: 'Ajout local',
-        rating: 4.5,
-        reviewCount: 1,
-        distanceKm: 1.2,
-        isOpen: true,
-        isVerified: true,
-        responseTime: '15 min',
-        priceLevel: '15k-80k CFA',
+        rating: 0,
+        reviewCount: 0,
+        distanceKm: 0,
+        distanceKnown: false,
+        isOpen: false,
+        isVerified: false,
+        reviewStatus: 'pending',
+        responseTime: '',
+        priceLevel: '',
         services: [_specialtyController.text, 'Diagnostic', 'Dépannage'],
       );
-      garages.insert(0, newGarage);
+      final controller = context.read<GarageController>();
+      await controller.addGarage(newGarage);
+      if (!mounted) return;
       setState(() => _isSubmitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -87,7 +83,7 @@ class _FormScreenState extends State<FormScreen> {
             children: [
               const Icon(Icons.check_circle, color: Colors.white),
               const SizedBox(width: 12),
-              Text('Garage "${newGarage.name}" ajouté avec succès !'),
+              Text(l10n.text('garageAdded', {'name': newGarage.name})),
             ],
           ),
           backgroundColor: AppTheme.success,
@@ -105,9 +101,10 @@ class _FormScreenState extends State<FormScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Référencer un garage'), elevation: 0),
+      appBar: AppBar(title: Text(l10n.t('registerGarage')), elevation: 0),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -161,11 +158,15 @@ class _FormScreenState extends State<FormScreen> {
                               left: 16,
                               right: 16,
                               child: Row(
-                                children: const [
-                                  Icon(Icons.add_business_rounded, color: Colors.white, size: 24),
+                                children: [
+                                  Icon(
+                                    Icons.add_business_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
                                   SizedBox(width: 8),
                                   Text(
-                                    'Inscription Atelier & Service Dépannage',
+                                    l10n.t('formHeader'),
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
@@ -184,7 +185,7 @@ class _FormScreenState extends State<FormScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Renseignez les détails de votre atelier mécanique ou dépannage',
+                              l10n.t('formIntro'),
                               style: TextStyle(
                                 fontSize: 13,
                                 color: isDark ? Colors.white60 : AppTheme.muted,
@@ -193,52 +194,57 @@ class _FormScreenState extends State<FormScreen> {
                             const SizedBox(height: 20),
                             _buildTextField(
                               controller: _nameController,
-                              label: 'Nom du garage ou atelier',
+                              label: l10n.t('garageName'),
                               icon: Icons.business_rounded,
                               validator: (v) => v!.isEmpty
-                                  ? 'Nom requis'
+                                  ? l10n.t('nameRequired')
                                   : v.length < 3
-                                  ? 'Nom trop court'
+                                  ? l10n.t('nameTooShort')
                                   : null,
                             ),
                             const SizedBox(height: 14),
                             _buildTextField(
                               controller: _addressController,
-                              label: 'Adresse complète / Quartier',
+                              label: l10n.t('fullAddress'),
                               icon: Icons.location_on_rounded,
-                              validator: (v) => v!.isEmpty ? 'Adresse requise' : null,
+                              validator: (v) =>
+                                  v!.isEmpty ? l10n.t('addressRequired') : null,
                             ),
                             const SizedBox(height: 14),
                             _buildTextField(
                               controller: _phoneController,
-                              label: 'Téléphone de contact / Urgence',
+                              label: l10n.t('contactPhone'),
                               icon: Icons.phone_rounded,
                               keyboardType: TextInputType.phone,
                               validator: (v) {
-                                if (v!.isEmpty) return 'Téléphone requis';
+                                if (v!.isEmpty) return l10n.t('phoneRequired');
                                 final digits = v.replaceAll(RegExp(r'\D'), '');
-                                if (digits.length < 8) return 'Numéro invalide';
+                                if (digits.length < 8) {
+                                  return l10n.t('invalidPhone');
+                                }
                                 return null;
                               },
                             ),
                             const SizedBox(height: 14),
                             _buildTextField(
                               controller: _chiefController,
-                              label: 'Responsable ou Chef d’atelier',
+                              label: l10n.t('managerName'),
                               icon: Icons.person_rounded,
-                              validator: (v) => v!.isEmpty ? 'Nom requis' : null,
+                              validator: (v) =>
+                                  v!.isEmpty ? l10n.t('nameRequired') : null,
                             ),
                             const SizedBox(height: 14),
                             _buildTextField(
                               controller: _specialtyController,
-                              label: 'Spécialité (Auto, Moto, Électricité, Dépannage)',
+                              label: l10n.t('specialtyLabel'),
                               icon: Icons.build_rounded,
-                              validator: (v) =>
-                                  v!.isEmpty ? 'Spécialité requise' : null,
+                              validator: (v) => v!.isEmpty
+                                  ? l10n.t('specialtyRequired')
+                                  : null,
                             ),
                             const SizedBox(height: 18),
-                            const Text(
-                              'Photo de présentation (Sélectionnez une image professionnelle)',
+                            Text(
+                              l10n.t('imageTitle'),
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
@@ -250,10 +256,12 @@ class _FormScreenState extends State<FormScreen> {
                               child: ListView.separated(
                                 scrollDirection: Axis.horizontal,
                                 itemCount: _imagePresets.length,
-                                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(width: 8),
                                 itemBuilder: (context, index) {
                                   final preset = _imagePresets[index];
-                                  final isSelected = _imageUrl == preset['path'];
+                                  final isSelected =
+                                      _imageUrl == preset['path'];
 
                                   return GestureDetector(
                                     onTap: () {
@@ -283,11 +291,13 @@ class _FormScreenState extends State<FormScreen> {
                                               height: 70,
                                             ),
                                             Container(
-                                              color: Colors.black.withValues(alpha: 0.45),
+                                              color: Colors.black.withValues(
+                                                alpha: 0.45,
+                                              ),
                                               alignment: Alignment.center,
                                               padding: const EdgeInsets.all(4),
                                               child: Text(
-                                                preset['label']!,
+                                                l10n.t(preset['label']!),
                                                 textAlign: TextAlign.center,
                                                 style: const TextStyle(
                                                   color: Colors.white,
@@ -302,7 +312,8 @@ class _FormScreenState extends State<FormScreen> {
                                                 right: 4,
                                                 child: Icon(
                                                   Icons.check_circle_rounded,
-                                                  color: theme.colorScheme.primary,
+                                                  color:
+                                                      theme.colorScheme.primary,
                                                   size: 18,
                                                 ),
                                               ),
@@ -322,7 +333,9 @@ class _FormScreenState extends State<FormScreen> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppTheme.success,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(
                                       AppTheme.radius,
@@ -339,13 +352,17 @@ class _FormScreenState extends State<FormScreen> {
                                           color: Colors.white,
                                         ),
                                       )
-                                    : const Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
-                                          Icon(Icons.check_circle_rounded, color: Colors.white),
+                                          Icon(
+                                            Icons.check_circle_rounded,
+                                            color: Colors.white,
+                                          ),
                                           SizedBox(width: 8),
                                           Text(
-                                            'Enregistrer le garage',
+                                            l10n.t('saveGarage'),
                                             style: TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.bold,
@@ -361,9 +378,11 @@ class _FormScreenState extends State<FormScreen> {
                               child: TextButton(
                                 onPressed: () => context.go('/'),
                                 child: Text(
-                                  'Annuler',
+                                  l10n.t('cancel'),
                                   style: TextStyle(
-                                    color: isDark ? Colors.white54 : AppTheme.muted,
+                                    color: isDark
+                                        ? Colors.white54
+                                        : AppTheme.muted,
                                   ),
                                 ),
                               ),
@@ -401,7 +420,10 @@ class _FormScreenState extends State<FormScreen> {
       style: TextStyle(color: theme.textTheme.bodyLarge?.color, fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: isDark ? Colors.white60 : AppTheme.muted, fontSize: 13),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.white60 : AppTheme.muted,
+          fontSize: 13,
+        ),
         prefixIcon: Icon(icon, color: theme.colorScheme.primary, size: 20),
         filled: true,
         fillColor: isDark ? const Color(0xFF182033) : const Color(0xFFF7F9FC),

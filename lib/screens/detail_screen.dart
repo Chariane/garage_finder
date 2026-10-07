@@ -1,10 +1,35 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../data/garage_data.dart';
+import '../controllers/garage_controller.dart';
+import '../controllers/auth_controller.dart';
+import '../core/localization/app_localizations.dart';
 import '../models/garage.dart';
+import '../repositories/garage_repository.dart';
 import '../theme/app_theme.dart';
 import '../widgets/garage_image.dart';
+
+Future<void> _launchExternal(
+  BuildContext context,
+  Uri uri,
+  String failureMessage,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        context.mounted) {
+      messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
+    }
+  } catch (_) {
+    if (context.mounted) {
+      messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
+    }
+  }
+}
 
 class DetailScreen extends StatelessWidget {
   final String garageId;
@@ -13,22 +38,18 @@ class DetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Garage? garage;
-    for (final item in garages) {
-      if (item.id == garageId) {
-        garage = item;
-        break;
-      }
-    }
+    final controller = context.watch<GarageController>();
+    final garage = controller.findById(garageId);
+    final l10n = AppLocalizations.of(context);
 
     if (garage == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Garage introuvable')),
+        appBar: AppBar(title: Text(l10n.t('notFound'))),
         body: Center(
           child: FilledButton.icon(
             onPressed: () => context.go('/list'),
             icon: const Icon(Icons.arrow_back_rounded),
-            label: const Text('Retour à la liste'),
+            label: Text(l10n.t('backToList')),
           ),
         ),
       );
@@ -46,22 +67,21 @@ class DetailScreen extends StatelessWidget {
             backgroundColor: theme.scaffoldBackgroundColor,
             foregroundColor: Colors.white,
             leading: IconButton.filledTonal(
-              tooltip: 'Retour',
+              tooltip: l10n.t('back'),
               onPressed: () => context.go('/list'),
               icon: const Icon(Icons.arrow_back_rounded),
             ),
             actions: [
               IconButton.filledTonal(
-                tooltip: 'Partager',
-                icon: const Icon(Icons.ios_share_rounded),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Partage de ${garage!.name} simulé'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                tooltip: controller.isFavorite(garageId)
+                    ? l10n.t('favoriteOn')
+                    : l10n.t('favoriteOff'),
+                icon: Icon(
+                  controller.isFavorite(garageId)
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                ),
+                onPressed: () => controller.toggleFavorite(garageId),
               ),
               const SizedBox(width: 8),
             ],
@@ -127,47 +147,88 @@ class DetailScreen extends StatelessWidget {
                       Expanded(
                         child: _ActionButton(
                           icon: Icons.phone_rounded,
-                          label: 'Appeler',
+                          label: l10n.t('call'),
                           color: AppTheme.success,
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Appel à ${garage!.phone} simulé',
-                                ),
-                                behavior: SnackBarBehavior.floating,
+                          onPressed: () => _launchExternal(
+                            context,
+                            Uri(
+                              scheme: 'tel',
+                              path: garage.phone.replaceAll(
+                                RegExp(r'[^0-9+]'),
+                                '',
                               ),
-                            );
-                          },
+                            ),
+                            l10n.t('launchFailed'),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _ActionButton(
                           icon: Icons.directions_rounded,
-                          label: 'Itinéraire',
+                          label: l10n.t('route'),
                           color: theme.colorScheme.primary,
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Itinéraire simulé'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
+                          onPressed: () => _launchExternal(
+                            context,
+                            Uri.https('www.google.com', '/maps/dir/', {
+                              'api': '1',
+                              'destination':
+                                  garage.latitude != null &&
+                                      garage.longitude != null
+                                  ? '${garage.latitude},${garage.longitude}'
+                                  : '${garage.address}, ${garage.city}',
+                            }),
+                            l10n.t('launchFailed'),
+                          ),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  if (garage.reviewStatus == 'approved')
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        FilledButton.icon(
+                          onPressed:
+                              garage.availabilityStatus == 'unavailable' ||
+                                  garage.availabilityStatus == 'busy'
+                              ? null
+                              : () =>
+                                    context.push('/request/new', extra: garage),
+                          icon: const Icon(Icons.car_repair),
+                          label: Text(l10n.t('requestHelp')),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _writeReview(context, garage),
+                          icon: const Icon(Icons.rate_review_outlined),
+                          label: Text(l10n.t('writeReview')),
+                        ),
+                        IconButton(
+                          tooltip: l10n.t('reportGarage'),
+                          onPressed: () => _reportGarage(context, garage),
+                          icon: const Icon(Icons.flag_outlined),
+                        ),
+                      ],
+                    ),
+                  if (garage.reviewStatus == 'approved') ...[
+                    const SizedBox(height: 8),
+                    Text(l10n.t('availability_${garage.availabilityStatus}')),
+                    if (garage.availabilityUpdatedAt != null)
+                      Text(
+                        '${l10n.t('availabilityUpdated')} ${MaterialLocalizations.of(context).formatShortDate(garage.availabilityUpdatedAt!.toLocal())}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
                   const SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(
                         child: _HighlightTile(
                           icon: Icons.star_rounded,
-                          label: 'Note',
-                          value:
-                              '${garage.rating.toStringAsFixed(1)} / 5',
+                          label: l10n.t('rating'),
+                          value: '${garage.rating.toStringAsFixed(1)} / 5',
                           detail: '${garage.reviewCount} avis',
                           color: AppTheme.accent,
                         ),
@@ -176,9 +237,10 @@ class DetailScreen extends StatelessWidget {
                       Expanded(
                         child: _HighlightTile(
                           icon: Icons.near_me_rounded,
-                          label: 'Distance',
-                          value:
-                              '${garage.distanceKm.toStringAsFixed(1)} km',
+                          label: l10n.t('distance'),
+                          value: garage.distanceKnown
+                              ? '${garage.distanceKm.toStringAsFixed(1)} km'
+                              : l10n.t('distanceUnavailable'),
                           detail: garage.responseTime,
                           color: theme.colorScheme.secondary,
                         ),
@@ -189,8 +251,10 @@ class DetailScreen extends StatelessWidget {
                           icon: garage.isOpen
                               ? Icons.schedule_rounded
                               : Icons.lock_clock_rounded,
-                          label: 'Statut',
-                          value: garage.isOpen ? 'Ouvert' : 'Fermé',
+                          label: l10n.t('status'),
+                          value: garage.isOpen
+                              ? l10n.t('openStatus')
+                              : l10n.t('closedStatus'),
                           detail: garage.priceLevel,
                           color: garage.isOpen
                               ? AppTheme.success
@@ -200,7 +264,7 @@ class DetailScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  Text('Aperçu', style: theme.textTheme.titleLarge),
+                  Text(l10n.t('overview'), style: theme.textTheme.titleLarge),
                   const SizedBox(height: 12),
                   Text(
                     garage.description,
@@ -210,7 +274,10 @@ class DetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text('Informations', style: theme.textTheme.titleLarge),
+                  Text(
+                    l10n.t('information'),
+                    style: theme.textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 12),
                   Card(
                     child: Padding(
@@ -219,15 +286,18 @@ class DetailScreen extends StatelessWidget {
                         children: [
                           _InfoRow(
                             icon: Icons.location_on_rounded,
-                            label: 'Adresse',
+                            label: l10n.t('address'),
                             value: '${garage.city} · ${garage.address}',
                             color: theme.colorScheme.secondary,
                           ),
                           const Divider(height: 24),
                           _InfoRow(
                             icon: Icons.access_time_filled_rounded,
-                            label: 'Horaires',
-                            value: garage.openingHours,
+                            label: l10n.t('hours'),
+                            value: _openingHoursLabel(
+                              garage.openingHours,
+                              l10n,
+                            ),
                             color: garage.isOpen
                                 ? AppTheme.success
                                 : Colors.redAccent,
@@ -235,14 +305,14 @@ class DetailScreen extends StatelessWidget {
                           const Divider(height: 24),
                           _InfoRow(
                             icon: Icons.phone_rounded,
-                            label: 'Téléphone',
+                            label: l10n.t('phone'),
                             value: garage.phone,
                             color: AppTheme.success,
                           ),
                           const Divider(height: 24),
                           _InfoRow(
                             icon: Icons.person_rounded,
-                            label: 'Chef de garage',
+                            label: l10n.t('manager'),
                             value: garage.chief,
                             color: theme.colorScheme.primary,
                           ),
@@ -251,10 +321,10 @@ class DetailScreen extends StatelessWidget {
                             icon: garage.isVerified
                                 ? Icons.verified_rounded
                                 : Icons.info_rounded,
-                            label: 'Confiance',
+                            label: l10n.t('trust'),
                             value: garage.isVerified
-                                ? 'Garage vérifié'
-                                : 'Garage non vérifié',
+                                ? l10n.t('verified')
+                                : l10n.t('unverified'),
                             color: garage.isVerified
                                 ? theme.colorScheme.primary
                                 : AppTheme.accent,
@@ -262,7 +332,7 @@ class DetailScreen extends StatelessWidget {
                           const Divider(height: 24),
                           _InfoRow(
                             icon: Icons.link_rounded,
-                            label: 'Source',
+                            label: l10n.t('source'),
                             value: garage.sourceUrl,
                             color: theme.colorScheme.secondary,
                           ),
@@ -271,7 +341,7 @@ class DetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text('Services', style: theme.textTheme.titleLarge),
+                  Text(l10n.t('services'), style: theme.textTheme.titleLarge),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -280,8 +350,19 @@ class DetailScreen extends StatelessWidget {
                       return _ServicePill(label: service);
                     }).toList(),
                   ),
+                  const SizedBox(height: 24),
+                  Text(l10n.t('reviews'), style: theme.textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  if (context.read<GarageController>().repository
+                      is CustomerWorkflowRepository)
+                    _ReviewsSection(
+                      garageId: garage.id,
+                      repository:
+                          context.read<GarageController>().repository
+                              as CustomerWorkflowRepository,
+                    ),
                   const SizedBox(height: 20),
-                  Text('Localisation', style: theme.textTheme.titleLarge),
+                  Text(l10n.t('location'), style: theme.textTheme.titleLarge),
                   const SizedBox(height: 12),
                   _MapPreview(garage: garage),
                 ],
@@ -292,6 +373,266 @@ class DetailScreen extends StatelessWidget {
       ),
     );
   }
+
+  String _openingHoursLabel(String value, AppLocalizations l10n) {
+    try {
+      final schedule = jsonDecode(value) as Map<String, dynamic>;
+      if (schedule.isEmpty) return l10n.t('hoursNotSet');
+      return schedule.entries
+          .map((entry) {
+            const dayKeys = {
+              'monday': 'mon',
+              'tuesday': 'tue',
+              'wednesday': 'wed',
+              'thursday': 'thu',
+              'friday': 'fri',
+              'saturday': 'sat',
+              'sunday': 'sun',
+            };
+            final day = l10n.t('day_${dayKeys[entry.key] ?? entry.key}');
+            final data = entry.value;
+            if (data is List && data.length >= 2) {
+              return '$day: ${data[0]}–${data[1]}';
+            }
+            if (data is! Map<String, dynamic>) return '$day: $data';
+            if (data['closed'] == true) {
+              return '$day: ${l10n.t('closedStatus')}';
+            }
+            return '$day: ${data['open'] ?? '--:--'}–${data['close'] ?? '--:--'}';
+          })
+          .join('\n');
+    } on FormatException {
+      return value;
+    } on TypeError {
+      return value;
+    }
+  }
+
+  Future<void> _writeReview(BuildContext context, Garage garage) async {
+    final l10n = AppLocalizations.of(context);
+    final auth = context.read<AuthController>();
+    final repository = context.read<GarageController>().repository;
+    final controller = context.read<GarageController>();
+    final messenger = ScaffoldMessenger.of(context);
+    if (!auth.isSignedIn ||
+        auth.isGarageOwner ||
+        repository is! CustomerWorkflowRepository) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.t('customerSignInRequired'))));
+      return;
+    }
+    final workflow = repository as CustomerWorkflowRepository;
+    try {
+      if (!await workflow.canReviewGarage(garage.id)) {
+        if (context.mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.t('reviewAfterService'))),
+          );
+        }
+        return;
+      }
+    } catch (error) {
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    var rating = 5;
+    final comment = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(l10n.t('writeReview')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var value = 1; value <= 5; value++)
+                    IconButton(
+                      tooltip: '$value / 5',
+                      onPressed: () => setDialogState(() => rating = value),
+                      icon: Icon(
+                        value <= rating ? Icons.star : Icons.star_border,
+                        color: Colors.amber,
+                      ),
+                    ),
+                ],
+              ),
+              TextField(
+                controller: comment,
+                maxLength: 1200,
+                minLines: 2,
+                maxLines: 5,
+                decoration: InputDecoration(labelText: l10n.t('reviewComment')),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.t('cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.t('sendReview')),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == true && context.mounted) {
+      try {
+        await workflow.submitReview(garage.id, rating, comment.text);
+        await controller.refreshGarage(garage.id);
+        if (context.mounted) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.t('reviewSaved'))),
+          );
+        }
+      } catch (error) {
+        if (context.mounted) {
+          messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+        }
+      }
+    }
+    comment.dispose();
+  }
+
+  Future<void> _reportGarage(BuildContext context, Garage garage) async {
+    final l10n = AppLocalizations.of(context);
+    final auth = context.read<AuthController>();
+    final repository = context.read<GarageController>().repository;
+    final messenger = ScaffoldMessenger.of(context);
+    if (!auth.isSignedIn ||
+        auth.isGarageOwner ||
+        repository is! CustomerWorkflowRepository) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.t('customerSignInRequired'))));
+      return;
+    }
+    String category = 'phone';
+    final description = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(l10n.t('reportGarage')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: category,
+                items: [
+                  for (final key in [
+                    'phone',
+                    'address',
+                    'closed',
+                    'behavior',
+                    'other',
+                  ])
+                    DropdownMenuItem(
+                      value: key,
+                      child: Text(l10n.t('report_$key')),
+                    ),
+                ],
+                onChanged: (value) =>
+                    setDialogState(() => category = value ?? 'other'),
+              ),
+              TextField(
+                controller: description,
+                maxLength: 1000,
+                minLines: 2,
+                maxLines: 4,
+                decoration: InputDecoration(labelText: l10n.t('reportDetails')),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.t('cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.t('sendReport')),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == true && context.mounted) {
+      try {
+        await (repository as CustomerWorkflowRepository).reportGarage(
+          garage.id,
+          category,
+          description.text,
+        );
+        if (context.mounted) {
+          messenger.showSnackBar(SnackBar(content: Text(l10n.t('reportSent'))));
+        }
+      } catch (error) {
+        if (context.mounted) {
+          messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+        }
+      }
+    }
+    description.dispose();
+  }
+}
+
+class _ReviewsSection extends StatelessWidget {
+  final String garageId;
+  final CustomerWorkflowRepository repository;
+
+  const _ReviewsSection({required this.garageId, required this.repository});
+
+  @override
+  Widget build(BuildContext context) =>
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: repository.getReviews(garageId),
+        builder: (context, snapshot) {
+          final l10n = AppLocalizations.of(context);
+          if (snapshot.hasError) return Text(snapshot.error.toString());
+          if (!snapshot.hasData) return const LinearProgressIndicator();
+          if (snapshot.data!.isEmpty) return Text(l10n.t('noReviews'));
+          return Column(
+            children: [
+              for (final review in snapshot.data!)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.account_circle_outlined),
+                  title: Row(
+                    children: [
+                      for (
+                        var i = 0;
+                        i < (review['rating'] as num).toInt();
+                        i++
+                      )
+                        const Icon(Icons.star, size: 16, color: Colors.amber),
+                    ],
+                  ),
+                  subtitle: Text(
+                    (review['comment'] as String?)?.trim().isNotEmpty == true
+                        ? review['comment'] as String
+                        : l10n.t('ratingOnly'),
+                  ),
+                  trailing: Text(
+                    DateTime.tryParse(
+                          review['created_at'] as String? ?? '',
+                        )?.toLocal().toString().split(' ').first ??
+                        '',
+                  ),
+                ),
+            ],
+          );
+        },
+      );
 }
 
 class _ActionButton extends StatelessWidget {
@@ -400,9 +741,7 @@ class _HighlightTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF182033) : Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radius),
-        border: Border.all(
-          color: color.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

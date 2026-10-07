@@ -1,4 +1,4 @@
-package com.example.garage_finder
+package com.chariane.garagefinder
 
 import io.flutter.embedding.android.FlutterActivity
 
