@@ -32,7 +32,7 @@ jobs:
       - run: flutter test
       - name: Run integration tests on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
-        timeout-minutes: 15
+        timeout-minutes: 22
         env:
           ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 5
         with:
@@ -40,7 +40,15 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: flutter test --reporter expanded integration_test/app_flow_test.dart
+          script: |
+            set +e
+            timeout --foreground --signal=INT --kill-after=15s 18m flutter test --verbose --reporter expanded integration_test/app_flow_test.dart
+            test_status=$?
+            if [ "$test_status" -ne 0 ]; then
+              echo "Integration test failed or timed out; recent Android logs follow."
+              adb logcat -d -t 500 -s flutter AndroidRuntime System.err ActivityTaskManager
+            fi
+            exit "$test_status"
       - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:
