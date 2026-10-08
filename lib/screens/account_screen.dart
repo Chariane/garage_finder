@@ -10,7 +10,9 @@ import '../controllers/auth_controller.dart';
 import '../core/localization/app_localizations.dart';
 
 class AccountScreen extends StatefulWidget {
-  const AccountScreen({super.key});
+  final bool startWithSignup;
+
+  const AccountScreen({super.key, this.startWithSignup = false});
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
@@ -31,10 +33,17 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _isCreatingAccount = false;
   bool _isGarageOwner = false;
   bool _isSubmitting = false;
+  bool _isResendingConfirmation = false;
   bool _obscurePassword = true;
   String? _message;
   String? _error;
   String? _garageLocationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _isCreatingAccount = widget.startWithSignup;
+  }
 
   String _friendlyError(Object error, AppLocalizations l10n) {
     if (error is AuthException && error.statusCode == '429') {
@@ -200,6 +209,31 @@ class _AccountScreenState extends State<AccountScreen> {
       if (mounted) setState(() => _message = l10n.t('resetSent'));
     } catch (error) {
       if (mounted) setState(() => _error = _friendlyError(error, l10n));
+    }
+  }
+
+  Future<void> _resendConfirmation(AuthController auth) async {
+    final l10n = AppLocalizations.of(context);
+    final email = _emailController.text.trim();
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      setState(() {
+        _error = l10n.t('invalidEmail');
+        _message = null;
+      });
+      return;
+    }
+    setState(() {
+      _isResendingConfirmation = true;
+      _error = null;
+      _message = null;
+    });
+    try {
+      await auth.resendSignupConfirmation(email);
+      if (mounted) setState(() => _message = l10n.t('confirmationResent'));
+    } catch (error) {
+      if (mounted) setState(() => _error = _friendlyError(error, l10n));
+    } finally {
+      if (mounted) setState(() => _isResendingConfirmation = false);
     }
   }
 
@@ -454,6 +488,21 @@ class _AccountScreenState extends State<AccountScreen> {
                         : l10n.t('signIn'),
                   ),
           ),
+          if (_isCreatingAccount) ...[
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: _isResendingConfirmation || _isSubmitting
+                  ? null
+                  : () => _resendConfirmation(auth),
+              icon: _isResendingConfirmation
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.mark_email_unread_outlined),
+              label: Text(l10n.t('resendConfirmation')),
+            ),
+          ],
         ],
       ),
     );

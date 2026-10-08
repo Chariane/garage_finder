@@ -9,6 +9,9 @@ if [[ ! -f "$config" ]]; then
 fi
 
 if [[ $# -gt 0 ]]; then
+  if [[ "$1" == "chrome" ]]; then
+    exec flutter run -d chrome --web-hostname localhost --web-port 46813 --dart-define-from-file="$config"
+  fi
   exec flutter run -d "$1" --dart-define-from-file="$config"
 fi
 

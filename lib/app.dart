@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'screens/account_screen.dart';
+import 'screens/auth_callback_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/favorites_screen.dart';
 import 'screens/garage_owner_form_screen.dart';
@@ -52,7 +53,13 @@ final router = GoRouter(
         ),
         GoRoute(
           path: '/account',
-          builder: (context, state) => const AccountScreen(),
+          builder: (context, state) => AccountScreen(
+            startWithSignup: state.uri.queryParameters['mode'] == 'signup',
+          ),
+        ),
+        GoRoute(
+          path: '/auth/callback',
+          builder: (context, state) => AuthCallbackScreen(uri: state.uri),
         ),
         GoRoute(
           path: '/owner',

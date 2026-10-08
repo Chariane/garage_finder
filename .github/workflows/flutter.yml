@@ -30,11 +30,16 @@ jobs:
       - run: dart format --set-exit-if-changed lib test integration_test
       - run: flutter analyze
       - run: flutter test
-      - uses: reactivecircus/android-emulator-runner@v2
+      - name: Run integration tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 15
+        env:
+          ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 5
         with:
-          api-level: 35
+          api-level: 34
           arch: x86_64
           profile: pixel_2
+          disable-animations: true
           script: flutter test integration_test/app_flow_test.dart
       - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4

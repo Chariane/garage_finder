@@ -133,6 +133,18 @@ class AppLocalizations {
       'forgotPassword': 'Mot de passe oublié ?',
       'resetSent': 'E-mail de réinitialisation envoyé.',
       'checkEmail': 'Vérifie ton e-mail pour confirmer le compte.',
+      'resendConfirmation': 'Renvoyer l’e-mail de confirmation',
+      'confirmationResent': 'Un nouvel e-mail de confirmation a été envoyé.',
+      'invalidEmail': 'Saisis une adresse e-mail valide.',
+      'emailLinkExpiredTitle': 'Ce lien de confirmation a expiré',
+      'emailLinkExpiredBody':
+          'Le lien est expiré ou a déjà été utilisé. Reviens à la création de compte, saisis la même adresse et demande un nouvel e-mail.',
+      'emailLinkFailedTitle': 'Confirmation impossible',
+      'emailLinkFailedBody':
+          'Le lien ne peut pas être validé. Demande un nouvel e-mail de confirmation.',
+      'emailConfirmedTitle': 'Adresse e-mail confirmée',
+      'emailConfirmedBody': 'Ton compte Garage Finder est prêt.',
+      'continueToApp': 'Continuer vers Garage Finder',
       'authRateLimited':
           'Trop de demandes ont été envoyées. Vérifie ta boîte mail et les indésirables, puis réessaie plus tard sans renvoyer plusieurs fois le formulaire.',
       'customerAccountHelp':
@@ -395,6 +407,18 @@ class AppLocalizations {
       'forgotPassword': 'Forgot password?',
       'resetSent': 'Password reset email sent.',
       'checkEmail': 'Check your email to confirm your account.',
+      'resendConfirmation': 'Resend confirmation email',
+      'confirmationResent': 'A new confirmation email has been sent.',
+      'invalidEmail': 'Enter a valid email address.',
+      'emailLinkExpiredTitle': 'This confirmation link has expired',
+      'emailLinkExpiredBody':
+          'The link expired or was already used. Return to account creation, enter the same address, and request a new email.',
+      'emailLinkFailedTitle': 'Could not confirm your email',
+      'emailLinkFailedBody':
+          'This link could not be verified. Request a new confirmation email.',
+      'emailConfirmedTitle': 'Email address confirmed',
+      'emailConfirmedBody': 'Your Garage Finder account is ready.',
+      'continueToApp': 'Continue to Garage Finder',
       'authRateLimited':
           'Too many requests have been sent. Check your inbox and spam folder, then try again later without resubmitting repeatedly.',
       'customerAccountHelp':

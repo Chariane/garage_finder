@@ -45,6 +45,9 @@ class AuthController extends ChangeNotifier {
     await supabase.auth.signUp(
       email: email.trim(),
       password: password,
+      emailRedirectTo: kIsWeb
+          ? Uri.base.resolve('/auth/callback').toString()
+          : null,
       data: {
         'display_name': name.trim(),
         'phone': phone.trim(),
@@ -53,6 +56,18 @@ class AuthController extends ChangeNotifier {
         if (garageOwner) 'garage_latitude': garageLatitude,
         if (garageOwner) 'garage_longitude': garageLongitude,
       },
+    );
+  }
+
+  Future<void> resendSignupConfirmation(String email) async {
+    final supabase = client;
+    if (supabase == null) throw StateError('Backend not configured');
+    await supabase.auth.resend(
+      type: OtpType.signup,
+      email: email.trim(),
+      emailRedirectTo: kIsWeb
+          ? Uri.base.resolve('/auth/callback').toString()
+          : null,
     );
   }
 

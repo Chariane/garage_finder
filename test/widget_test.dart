@@ -8,6 +8,7 @@ import 'package:garage_finder/providers/theme_provider.dart';
 import 'package:garage_finder/repositories/garage_repository.dart';
 import 'package:garage_finder/screens/detail_screen.dart';
 import 'package:garage_finder/screens/account_screen.dart';
+import 'package:garage_finder/screens/auth_callback_screen.dart';
 import 'package:garage_finder/screens/favorites_screen.dart';
 import 'package:garage_finder/screens/form_screen.dart';
 import 'package:garage_finder/screens/home_screen.dart';
@@ -102,6 +103,7 @@ void main() {
 
     await tester.tap(find.text('Créer un compte'));
     await tester.pumpAndSettle();
+    expect(find.text('Renvoyer l’e-mail de confirmation'), findsOneWidget);
     expect(find.text('Compte client'), findsOneWidget);
     expect(find.textContaining('La recherche est libre.'), findsOneWidget);
 
@@ -118,6 +120,22 @@ void main() {
     expect(find.text('Nom trop court'), findsOneWidget);
     expect(find.text('Téléphone requis'), findsOneWidget);
     expect(find.text('Adresse requise'), findsOneWidget);
+  });
+
+  testWidgets('expired signup link explains recovery action', (tester) async {
+    final controller = await controllerWithSeed();
+    await pumpTestApp(
+      tester,
+      AuthCallbackScreen(
+        uri: Uri.parse(
+          'http://localhost:46813/auth/callback?error=access_denied&error_code=otp_expired#error=access_denied&error_code=otp_expired',
+        ),
+      ),
+      controller,
+    );
+    expect(find.text('Ce lien de confirmation a expiré'), findsOneWidget);
+    expect(find.textContaining('demande un nouvel e-mail'), findsOneWidget);
+    expect(find.text('Compte'), findsOneWidget);
   });
 
   testWidgets('moderation screen denies access to non-moderators', (

@@ -76,6 +76,8 @@ bash tool/run.sh chrome
 
 Le fichier `config/supabase.json` est ignoré par Git. Pour lancer sur l’appareil Flutter par défaut, utilise `bash tool/run.sh`; pour Linux, `bash tool/run.sh linux`. Le lanceur fournit le fichier avec `--dart-define-from-file`. La clé `publishable` est destinée aux clients; ne mets jamais une clé `service_role` dans Flutter ni dans Git. Sans configuration Supabase, l’application démarre en mode démonstration SQLite.
 
+Pour les inscriptions web locales, `bash tool/run.sh chrome` utilise `http://localhost:46813`. Dans Supabase, ajoute `http://localhost:46813/auth/callback` à Authentication > URL Configuration > Redirect URLs. Les liens expirés affichent une page de récupération et l’écran d’inscription permet de renvoyer le mail. En production, ajoute le domaine de l’app et son chemin `/auth/callback` à la liste d’URL autorisées.
+
 La base `garage_finder.db` est créée au premier démarrage. Si elle est vide, elle est initialisée avec les données de démonstration.
 
 ## Vérifications

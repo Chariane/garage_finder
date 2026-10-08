@@ -8,6 +8,7 @@ import '../providers/theme_provider.dart';
 import '../widgets/garage_card.dart';
 import '../widgets/garage_image.dart';
 import '../widgets/offline_data_banner.dart';
+import '../widgets/app_logo.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -21,7 +22,7 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.t('appTitle')),
+        title: const AppLogo.appBar(),
         actions: [
           IconButton(
             tooltip: l10n.t('theme'),
