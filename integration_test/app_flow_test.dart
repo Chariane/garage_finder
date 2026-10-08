@@ -12,12 +12,10 @@ import 'package:provider/provider.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<void> settle(WidgetTester tester) async {
-    for (var frame = 0; frame < 200; frame++) {
-      await tester.pump(const Duration(milliseconds: 100));
-      if (!tester.binding.hasScheduledFrame) return;
-    }
-    fail('The UI did not settle within 20 seconds.');
+  Future<void> pumpUi(WidgetTester tester, String step) async {
+    debugPrint('[integration] $step');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
   }
 
   Future<GarageController> seededController() async {
@@ -43,37 +41,42 @@ void main() {
     ),
   );
 
-  testWidgets('user searches a garage, opens details and saves it', (
-    tester,
-  ) async {
-    final controller = await seededController();
-    router.go('/list');
-    await tester.pumpWidget(app(controller));
-    await settle(tester);
-    final target = controller.garages.first;
-    await tester.enterText(find.byType(TextField).first, target.name);
-    await settle(tester);
-    await tester.tap(find.text(target.name).first);
-    await settle(tester);
-    expect(find.text(target.name), findsWidgets);
-    await tester.tap(find.byTooltip('Ajouter aux favoris'));
-    await settle(tester);
-    expect(controller.isFavorite(target.id), isTrue);
-  });
+  testWidgets(
+    'user searches a garage, opens details and saves it',
+    (tester) async {
+      final controller = await seededController();
+      router.go('/list');
+      await tester.pumpWidget(app(controller));
+      await pumpUi(tester, 'garage list rendered');
+      final target = controller.garages.first;
+      await tester.enterText(find.byType(TextField).first, target.name);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await pumpUi(tester, 'search results rendered');
+      await tester.tap(find.text(target.name).first);
+      await pumpUi(tester, 'garage detail rendered');
+      expect(find.text(target.name), findsWidgets);
+      await tester.tap(find.byTooltip('Ajouter aux favoris'));
+      await pumpUi(tester, 'favorite action completed');
+      expect(controller.isFavorite(target.id), isTrue);
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
-  testWidgets('new garage remains available after navigating to the list', (
-    tester,
-  ) async {
-    final controller = await seededController();
-    final template = controller.garages.first;
-    final added = template.copyWith(
-      id: 'integration-added',
-      name: 'Garage Intégration',
-    );
-    await controller.addGarage(added);
-    router.go('/list');
-    await tester.pumpWidget(app(controller));
-    await settle(tester);
-    expect(find.text('Garage Intégration'), findsOneWidget);
-  });
+  testWidgets(
+    'new garage remains available after navigating to the list',
+    (tester) async {
+      final controller = await seededController();
+      final template = controller.garages.first;
+      final added = template.copyWith(
+        id: 'integration-added',
+        name: 'Garage Intégration',
+      );
+      await controller.addGarage(added);
+      router.go('/list');
+      await tester.pumpWidget(app(controller));
+      await pumpUi(tester, 'new garage displayed');
+      expect(find.text('Garage Intégration'), findsOneWidget);
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }

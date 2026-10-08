@@ -193,6 +193,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(theme.locale.languageCode, 'en');
     expect(find.text('Settings'), findsOneWidget);
+    expect(find.textContaining('SQLite'), findsNothing);
+    expect(find.text('Local storage'), findsNothing);
   });
 
   testWidgets('garage detail toggles its persisted favorite state', (
@@ -225,14 +227,8 @@ void main() {
       const Scaffold(body: OfflineDataBanner(lastUpdated: null)),
       controller,
     );
-    expect(
-      find.text('Mode hors ligne : données enregistrées sur cet appareil'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('Aucune synchronisation récente'),
-      findsOneWidget,
-    );
+    expect(find.text('Connexion indisponible'), findsOneWidget);
+    expect(find.textContaining('peuvent ne pas être à jour'), findsOneWidget);
   });
 
   testWidgets('garage form validates required fields', (tester) async {

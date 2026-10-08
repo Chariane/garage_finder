@@ -64,11 +64,6 @@ class SettingsScreen extends StatelessWidget {
               title: Text(l10n.t('ownerDashboard')),
               onTap: () => context.go('/owner'),
             ),
-          ListTile(
-            leading: const Icon(Icons.storage),
-            title: Text(l10n.t('localStorage')),
-            subtitle: Text(l10n.t('offlineData')),
-          ),
           if (auth.user?.appMetadata['role'] == 'admin')
             ListTile(
               leading: const Icon(Icons.flag_outlined),
