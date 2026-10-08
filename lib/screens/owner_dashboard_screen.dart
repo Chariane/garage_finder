@@ -222,17 +222,28 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   final garages = snapshot.data!;
                   if (garages.isEmpty) {
                     return ListView(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
                       children: [
-                        const SizedBox(height: 100),
+                        _OwnerSetupGuide(
+                          metadata: auth.user?.userMetadata ?? const {},
+                          garages: garages,
+                        ),
+                        const SizedBox(height: 16),
                         Center(child: Text(l10n.t('noGaragesYet'))),
                       ],
                     );
                   }
                   return ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-                    itemCount: garages.length,
+                    itemCount: garages.length + 1,
                     itemBuilder: (context, index) {
-                      final garage = garages[index];
+                      if (index == 0) {
+                        return _OwnerSetupGuide(
+                          metadata: auth.user?.userMetadata ?? const {},
+                          garages: garages,
+                        );
+                      }
+                      final garage = garages[index - 1];
                       return Card(
                         child: Column(
                           children: [
@@ -325,8 +336,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                             ExpansionTile(
                               title: Text(l10n.t('incomingRequests')),
                               children: [
-                                FutureBuilder<List<Map<String, dynamic>>>(
-                                  future: _repository!.getGarageRequests(
+                                StreamBuilder<List<Map<String, dynamic>>>(
+                                  stream: _repository!.watchGarageRequests(
                                     garage.id,
                                   ),
                                   builder: (context, requests) {
@@ -439,4 +450,80 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
         'rejected' => l10n.t('rejected'),
         _ => l10n.t('pendingReview'),
       };
+}
+
+class _OwnerSetupGuide extends StatelessWidget {
+  final Map<String, dynamic> metadata;
+  final List<Garage> garages;
+
+  const _OwnerSetupGuide({required this.metadata, required this.garages});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final profileComplete =
+        _hasValue(metadata['display_name']) &&
+        _hasValue(metadata['phone']) &&
+        _hasValue(metadata['garage_address']);
+    final locationComplete =
+        (metadata['garage_latitude'] is num &&
+            metadata['garage_longitude'] is num) ||
+        garages.any(
+          (garage) => garage.latitude != null && garage.longitude != null,
+        );
+    final hasListing = garages.isNotEmpty;
+    final approved = garages.any((garage) => garage.isVerified);
+    final completed = [
+      profileComplete,
+      locationComplete,
+      hasListing,
+    ].where((step) => step).length;
+    final steps = [
+      (l10n.t('ownerProfileStep'), profileComplete),
+      (l10n.t('ownerLocationStep'), locationComplete),
+      (l10n.t('ownerListingStep'), hasListing),
+      (approved ? l10n.t('approved') : l10n.t('ownerReviewStep'), approved),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.t('ownerSetupTitle'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n.t('ownerSetupProgress').replaceAll('{done}', '$completed'),
+            ),
+            const SizedBox(height: 10),
+            LinearProgressIndicator(value: completed / 3),
+            const SizedBox(height: 8),
+            for (var i = 0; i < steps.length; i++)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  steps[i].$2
+                      ? Icons.check_circle_outline
+                      : i == 3 && hasListing
+                      ? Icons.hourglass_top
+                      : Icons.radio_button_unchecked,
+                ),
+                title: Text(steps[i].$1),
+                subtitle: i == 3 && hasListing && !approved
+                    ? Text(l10n.t('ownerReviewInProgress'))
+                    : null,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static bool _hasValue(Object? value) =>
+      value is String && value.trim().isNotEmpty;
 }

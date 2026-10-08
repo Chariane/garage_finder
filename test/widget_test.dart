@@ -15,7 +15,9 @@ import 'package:garage_finder/screens/list_screen.dart';
 import 'package:garage_finder/screens/moderation_screen.dart';
 import 'package:garage_finder/screens/service_request_screen.dart';
 import 'package:garage_finder/screens/settings_screen.dart';
+import 'package:garage_finder/widgets/offline_data_banner.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<GarageController> controllerWithSeed() async {
   final controller = GarageController(repository: InMemoryGarageRepository());
@@ -27,10 +29,11 @@ Widget testApp(
   Widget screen,
   GarageController controller, {
   ThemeProvider? theme,
+  AuthController? auth,
 }) {
   return MultiProvider(
     providers: [
-      ChangeNotifierProvider(create: (_) => AuthController(null)),
+      ChangeNotifierProvider(create: (_) => auth ?? AuthController(null)),
       ChangeNotifierProvider<GarageController>.value(value: controller),
       ChangeNotifierProvider<ThemeProvider>.value(
         value: theme ?? ThemeProvider(),
@@ -57,8 +60,11 @@ Future<void> pumpTestApp(
   Widget screen,
   GarageController controller, {
   ThemeProvider? theme,
+  AuthController? auth,
 }) async {
-  await tester.pumpWidget(testApp(screen, controller, theme: theme));
+  await tester.pumpWidget(
+    testApp(screen, controller, theme: theme, auth: auth),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -79,6 +85,39 @@ void main() {
       find.text('Backend non configuré. Mode démonstration actif.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('account creation has separate customer and garage roles', (
+    tester,
+  ) async {
+    final controller = await controllerWithSeed();
+    final auth = AuthController(
+      SupabaseClient(
+        'https://garage-finder-test.supabase.co',
+        'test-key',
+        authOptions: const FlutterAuthClientOptions(autoRefreshToken: false),
+      ),
+    );
+    await pumpTestApp(tester, const AccountScreen(), controller, auth: auth);
+
+    await tester.tap(find.text('Créer un compte'));
+    await tester.pumpAndSettle();
+    expect(find.text('Compte client'), findsOneWidget);
+    expect(find.textContaining('La recherche est libre.'), findsOneWidget);
+
+    await tester.tap(find.text('Garagiste'));
+    await tester.pumpAndSettle();
+    expect(find.text('Compte garagiste'), findsOneWidget);
+    expect(
+      find.textContaining('enregistrer et gérer tes garages'),
+      findsOneWidget,
+    );
+    expect(find.text('Adresse complète du garage'), findsOneWidget);
+    expect(tester.state<FormState>(find.byType(Form)).validate(), isFalse);
+    await tester.pumpAndSettle();
+    expect(find.text('Nom trop court'), findsOneWidget);
+    expect(find.text('Téléphone requis'), findsOneWidget);
+    expect(find.text('Adresse requise'), findsOneWidget);
   });
 
   testWidgets('moderation screen denies access to non-moderators', (
@@ -104,6 +143,17 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Aucun garage trouvé'), findsOneWidget);
+  });
+
+  testWidgets('garage list filters fit a narrow mobile screen', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = await controllerWithSeed();
+    await pumpTestApp(tester, const ListScreen(), controller);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('empty favorites offers a path back to garages', (tester) async {
@@ -140,6 +190,33 @@ void main() {
     expect(controller.isFavorite(garage.id), isTrue);
   });
 
+  testWidgets('garage detail offers WhatsApp contact', (tester) async {
+    final controller = await controllerWithSeed();
+    await pumpTestApp(
+      tester,
+      DetailScreen(garageId: controller.garages.first.id),
+      controller,
+    );
+    expect(find.text('Contacter sur WhatsApp'), findsOneWidget);
+  });
+
+  testWidgets('offline banner explains cache freshness', (tester) async {
+    final controller = await controllerWithSeed();
+    await pumpTestApp(
+      tester,
+      const Scaffold(body: OfflineDataBanner(lastUpdated: null)),
+      controller,
+    );
+    expect(
+      find.text('Mode hors ligne : données enregistrées sur cet appareil'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Aucune synchronisation récente'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('garage form validates required fields', (tester) async {
     final controller = await controllerWithSeed();
     await pumpTestApp(tester, const FormScreen(), controller);
@@ -149,7 +226,9 @@ void main() {
     expect(find.text('Nom requis'), findsNWidgets(2));
   });
 
-  testWidgets('roadside request requires a signed-in customer', (tester) async {
+  testWidgets('roadside request explains when the backend is unavailable', (
+    tester,
+  ) async {
     final controller = await controllerWithSeed();
     await pumpTestApp(
       tester,
@@ -157,6 +236,9 @@ void main() {
       controller,
     );
     expect(find.text('Demander un dépannage'), findsOneWidget);
-    expect(find.text('Compte'), findsOneWidget);
+    expect(
+      find.text('Backend non configuré. Mode démonstration actif.'),
+      findsOneWidget,
+    );
   });
 }

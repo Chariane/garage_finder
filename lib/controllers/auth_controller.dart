@@ -25,9 +25,23 @@ class AuthController extends ChangeNotifier {
     required String name,
     required String phone,
     required bool garageOwner,
+    String? garageAddress,
+    double? garageLatitude,
+    double? garageLongitude,
   }) async {
     final supabase = client;
     if (supabase == null) throw StateError('Backend not configured');
+    if (garageOwner &&
+        (garageAddress == null ||
+            garageAddress.trim().length < 3 ||
+            garageLatitude == null ||
+            garageLongitude == null ||
+            garageLatitude < -90 ||
+            garageLatitude > 90 ||
+            garageLongitude < -180 ||
+            garageLongitude > 180)) {
+      throw ArgumentError('A valid garage location is required');
+    }
     await supabase.auth.signUp(
       email: email.trim(),
       password: password,
@@ -35,6 +49,9 @@ class AuthController extends ChangeNotifier {
         'display_name': name.trim(),
         'phone': phone.trim(),
         'account_type': garageOwner ? 'garage_owner' : 'customer',
+        if (garageOwner) 'garage_address': garageAddress!.trim(),
+        if (garageOwner) 'garage_latitude': garageLatitude,
+        if (garageOwner) 'garage_longitude': garageLongitude,
       },
     );
   }

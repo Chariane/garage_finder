@@ -37,6 +37,10 @@ class AppLocalizations {
       'noGarage': 'Aucun garage trouvé',
       'details': 'Détails',
       'call': 'Appeler',
+      'contactWhatsApp': 'Contacter sur WhatsApp',
+      'requestWorkflowInfo':
+          'Envoie les détails pour suivre la réponse ici. Pour une urgence immédiate, appelle ou écris directement au garage.',
+      'sendingRequest': 'Envoi de la demande…',
       'route': 'Itinéraire',
       'save': 'Enregistrer',
       'language': 'Langue',
@@ -68,6 +72,10 @@ class AppLocalizations {
       'localStorage': 'Stockage local',
       'offlineData':
           'SQLite · cache public et favoris disponibles hors connexion',
+      'offlineMode': 'Mode hors ligne : données enregistrées sur cet appareil',
+      'offlineCacheUpdated': 'Dernière mise à jour :',
+      'offlineCacheUnknown':
+          'Aucune synchronisation récente enregistrée. Vérifie les informations avant de partir.',
       'version': 'Version 1.2.0',
       'registerGarage': 'Référencer un garage',
       'formHeader': 'Inscription atelier et dépannage',
@@ -109,9 +117,28 @@ class AppLocalizations {
       'displayName': 'Nom complet',
       'garageOwner': 'Je suis garagiste',
       'customer': 'Je cherche un garage',
+      'chooseAccountType': 'Quel type de compte veux-tu créer ?',
+      'customerRole': 'Client',
+      'garageOwnerRole': 'Garagiste',
+      'customerAccountTitle': 'Compte client',
+      'garageAccountTitle': 'Compte garagiste',
+      'garageAddress': 'Adresse complète du garage',
+      'garageAddressHint':
+          'Saisis l’adresse exacte puis localise-la, ou utilise le GPS en étant sur place.',
+      'garageLocationRequired':
+          'Indique l’adresse du garage et confirme son emplacement sur la carte avant de créer le compte.',
+      'garageLocationPrivacy':
+          'Cette position sera enregistrée pour préparer la fiche du garage et permettre aux clients de le trouver.',
+      'openMapLocation': 'Vérifier sur Google Maps',
       'forgotPassword': 'Mot de passe oublié ?',
       'resetSent': 'E-mail de réinitialisation envoyé.',
       'checkEmail': 'Vérifie ton e-mail pour confirmer le compte.',
+      'authRateLimited':
+          'Trop de demandes ont été envoyées. Vérifie ta boîte mail et les indésirables, puis réessaie plus tard sans renvoyer plusieurs fois le formulaire.',
+      'customerAccountHelp':
+          'La recherche est libre. Ce compte sert à envoyer des demandes de dépannage et à laisser un avis après une intervention.',
+      'garageAccountHelp':
+          'Ce compte permet d’enregistrer et gérer tes garages, puis de répondre aux demandes des clients.',
       'backendMissing': 'Backend non configuré. Mode démonstration actif.',
       'ownerDashboard': 'Espace garagiste',
       'myGarages': 'Mes garages',
@@ -119,6 +146,13 @@ class AppLocalizations {
       'approved': 'Publié et vérifié',
       'rejected': 'Refusé',
       'noGaragesYet': 'Aucun garage enregistré pour le moment.',
+      'ownerSetupTitle': 'Préparer votre présence sur Garage Finder',
+      'ownerSetupProgress': 'Configuration : {done}/3 étapes terminées',
+      'ownerProfileStep': 'Profil et coordonnées professionnelles renseignés',
+      'ownerLocationStep': 'Adresse et position du garage vérifiées',
+      'ownerListingStep': 'Fiche garage enregistrée',
+      'ownerReviewStep': 'Validation de la fiche par Garage Finder',
+      'ownerReviewInProgress': 'Votre fiche est en cours de vérification.',
       'addMyGarage': 'Ajouter mon garage',
       'deleteGarage': 'Supprimer ce garage ?',
       'locationPermissionDenied': 'Autorise la localisation pour continuer.',
@@ -187,6 +221,8 @@ class AppLocalizations {
       'reviewSaved': 'Avis enregistré. Merci !',
       'customerSignInRequired':
           'Connecte-toi avec un compte client pour continuer.',
+      'customerAccountRequired':
+          'Crée un compte client ou connecte-toi pour envoyer une demande et suivre son avancement.',
       'reportGarage': 'Signaler cette fiche',
       'report_phone': 'Téléphone incorrect',
       'report_address': 'Adresse incorrecte',
@@ -266,6 +302,10 @@ class AppLocalizations {
       'noGarage': 'No garage found',
       'details': 'Details',
       'call': 'Call',
+      'contactWhatsApp': 'Contact on WhatsApp',
+      'requestWorkflowInfo':
+          'Send the details to track the reply here. For immediate help, call or message the garage directly.',
+      'sendingRequest': 'Sending request…',
       'route': 'Route',
       'save': 'Save',
       'language': 'Language',
@@ -296,6 +336,10 @@ class AppLocalizations {
       'closedStatus': 'Closed',
       'localStorage': 'Local storage',
       'offlineData': 'SQLite · public cache and favorites available offline',
+      'offlineMode': 'Offline mode: showing data saved on this device',
+      'offlineCacheUpdated': 'Last updated:',
+      'offlineCacheUnknown':
+          'No recent sync is recorded. Confirm details before travelling.',
       'version': 'Version 1.2.0',
       'registerGarage': 'Register a garage',
       'formHeader': 'Workshop and roadside assistance registration',
@@ -335,9 +379,28 @@ class AppLocalizations {
       'displayName': 'Full name',
       'garageOwner': 'I am a garage owner',
       'customer': 'I am looking for a garage',
+      'chooseAccountType': 'Which type of account do you need?',
+      'customerRole': 'Customer',
+      'garageOwnerRole': 'Garage owner',
+      'customerAccountTitle': 'Customer account',
+      'garageAccountTitle': 'Garage owner account',
+      'garageAddress': 'Full garage address',
+      'garageAddressHint':
+          'Enter the exact address and locate it, or use GPS while at the garage.',
+      'garageLocationRequired':
+          'Enter the garage address and confirm its map location before creating the account.',
+      'garageLocationPrivacy':
+          'This location will be saved to prepare the garage listing and help customers find it.',
+      'openMapLocation': 'Check location on Google Maps',
       'forgotPassword': 'Forgot password?',
       'resetSent': 'Password reset email sent.',
       'checkEmail': 'Check your email to confirm your account.',
+      'authRateLimited':
+          'Too many requests have been sent. Check your inbox and spam folder, then try again later without resubmitting repeatedly.',
+      'customerAccountHelp':
+          'Search is open to everyone. Use a customer account to request roadside help and review a garage after service.',
+      'garageAccountHelp':
+          'Use a garage account to register and manage your garages and respond to customer requests.',
       'backendMissing': 'Backend not configured. Demo mode is active.',
       'ownerDashboard': 'Garage owner space',
       'myGarages': 'My garages',
@@ -345,6 +408,13 @@ class AppLocalizations {
       'approved': 'Published and verified',
       'rejected': 'Rejected',
       'noGaragesYet': 'No garages registered yet.',
+      'ownerSetupTitle': 'Set up your Garage Finder presence',
+      'ownerSetupProgress': 'Setup: {done}/3 steps complete',
+      'ownerProfileStep': 'Professional profile and contact details added',
+      'ownerLocationStep': 'Garage address and map location confirmed',
+      'ownerListingStep': 'Garage listing submitted',
+      'ownerReviewStep': 'Garage Finder listing review',
+      'ownerReviewInProgress': 'Your listing is being reviewed.',
       'addMyGarage': 'Add my garage',
       'deleteGarage': 'Delete this garage?',
       'locationPermissionDenied': 'Allow location access to continue.',
@@ -412,6 +482,8 @@ class AppLocalizations {
       'sendReview': 'Submit review',
       'reviewSaved': 'Review saved. Thank you!',
       'customerSignInRequired': 'Sign in with a customer account to continue.',
+      'customerAccountRequired':
+          'Create a customer account or sign in to send a request and track its progress.',
       'reportGarage': 'Report this listing',
       'report_phone': 'Incorrect phone number',
       'report_address': 'Incorrect address',

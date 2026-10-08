@@ -6,6 +6,7 @@ import '../controllers/garage_controller.dart';
 import '../core/localization/app_localizations.dart';
 import '../utils/garage_filters.dart';
 import '../widgets/garage_card.dart';
+import '../widgets/offline_data_banner.dart';
 import '../widgets/location_search_dialog.dart';
 
 class ListScreen extends StatefulWidget {
@@ -138,6 +139,8 @@ class _ListScreenState extends State<ListScreen> {
       appBar: AppBar(title: Text(l10n.t('garages'))),
       body: Column(
         children: [
+          if (controller.isShowingOfflineData)
+            OfflineDataBanner(lastUpdated: controller.cacheUpdatedAt),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: Column(
@@ -268,41 +271,52 @@ class _ListScreenState extends State<ListScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    FilterChip(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final sortButton = SegmentedButton<GarageSortMode>(
+                      showSelectedIcon: false,
+                      segments: [
+                        ButtonSegment(
+                          value: GarageSortMode.distance,
+                          icon: const Icon(Icons.near_me),
+                          label: Text(l10n.t('near')),
+                        ),
+                        ButtonSegment(
+                          value: GarageSortMode.rating,
+                          icon: const Icon(Icons.star),
+                          label: Text(l10n.t('rating')),
+                        ),
+                        ButtonSegment(
+                          value: GarageSortMode.response,
+                          icon: const Icon(Icons.bolt),
+                          label: Text(l10n.t('fast')),
+                        ),
+                      ],
+                      selected: {controller.sortMode},
+                      onSelectionChanged: (selection) =>
+                          controller.setSortMode(selection.first),
+                    );
+                    final emergencyFilter = FilterChip(
                       avatar: const Icon(Icons.flash_on, size: 18),
                       label: Text(l10n.t('emergency')),
                       selected: controller.sosOnly,
                       onSelected: controller.setSosOnly,
-                    ),
-                    const Spacer(),
-                    Flexible(
-                      child: SegmentedButton<GarageSortMode>(
-                        showSelectedIcon: false,
-                        segments: [
-                          ButtonSegment(
-                            value: GarageSortMode.distance,
-                            icon: const Icon(Icons.near_me),
-                            label: Text(l10n.t('near')),
-                          ),
-                          ButtonSegment(
-                            value: GarageSortMode.rating,
-                            icon: const Icon(Icons.star),
-                            label: Text(l10n.t('rating')),
-                          ),
-                          ButtonSegment(
-                            value: GarageSortMode.response,
-                            icon: const Icon(Icons.bolt),
-                            label: Text(l10n.t('fast')),
-                          ),
+                    );
+
+                    if (constraints.maxWidth < 500) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          emergencyFilter,
+                          const SizedBox(height: 8),
+                          SizedBox(width: double.infinity, child: sortButton),
                         ],
-                        selected: {controller.sortMode},
-                        onSelectionChanged: (selection) =>
-                            controller.setSortMode(selection.first),
-                      ),
-                    ),
-                  ],
+                      );
+                    }
+                    return Row(
+                      children: [emergencyFilter, const Spacer(), sortButton],
+                    );
+                  },
                 ),
                 Align(
                   alignment: Alignment.centerLeft,

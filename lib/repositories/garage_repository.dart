@@ -11,8 +11,15 @@ abstract class GarageRepository {
   Future<List<Garage>> getGarages();
   Future<void> seedIfEmpty(List<Garage> garages);
   Future<void> upsertGarage(Garage garage);
+  Future<void> removeGarageFromCache(String id);
   Future<Set<String>> getFavoriteIds();
   Future<void> setFavorite(String garageId, bool isFavorite);
+  Future<DateTime?> getCacheUpdatedAt();
+  Future<void> setCacheUpdatedAt(DateTime timestamp);
+}
+
+abstract interface class RemoteGarageRepository {
+  bool get lastReadWasOffline;
 }
 
 abstract interface class NearbyGarageRepository {
@@ -40,6 +47,7 @@ abstract interface class OwnerGarageRepository {
   });
   Future<void> updateAvailability(String garageId, String status);
   Future<List<Map<String, dynamic>>> getGarageRequests(String garageId);
+  Stream<List<Map<String, dynamic>>> watchGarageRequests(String garageId);
   Future<void> updateRequestStatus(
     String requestId,
     String status, {
@@ -125,6 +133,12 @@ class SqfliteGarageRepository implements GarageRepository {
   }
 
   @override
+  Future<void> removeGarageFromCache(String id) async {
+    final db = await database.instance;
+    await db.delete('garages', where: 'id = ?', whereArgs: [id]);
+  }
+
+  @override
   Future<Set<String>> getFavoriteIds() async {
     final db = await database.instance;
     final rows = await db.query('favorite_garages');
@@ -147,11 +161,35 @@ class SqfliteGarageRepository implements GarageRepository {
       );
     }
   }
+
+  @override
+  Future<DateTime?> getCacheUpdatedAt() async {
+    final db = await database.instance;
+    final rows = await db.query(
+      'app_metadata',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: ['garage_cache_updated_at'],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return DateTime.tryParse(rows.first['value']! as String)?.toLocal();
+  }
+
+  @override
+  Future<void> setCacheUpdatedAt(DateTime timestamp) async {
+    final db = await database.instance;
+    await db.insert('app_metadata', {
+      'key': 'garage_cache_updated_at',
+      'value': timestamp.toUtc().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
 }
 
 class InMemoryGarageRepository implements GarageRepository {
   final List<Garage> _garages;
   final Set<String> _favoriteIds;
+  DateTime? _cacheUpdatedAt;
 
   InMemoryGarageRepository({
     List<Garage> garages = const [],
@@ -178,6 +216,11 @@ class InMemoryGarageRepository implements GarageRepository {
   }
 
   @override
+  Future<void> removeGarageFromCache(String id) async {
+    _garages.removeWhere((garage) => garage.id == id);
+  }
+
+  @override
   Future<Set<String>> getFavoriteIds() async => Set.unmodifiable(_favoriteIds);
 
   @override
@@ -188,6 +231,14 @@ class InMemoryGarageRepository implements GarageRepository {
       _favoriteIds.remove(garageId);
     }
   }
+
+  @override
+  Future<DateTime?> getCacheUpdatedAt() async => _cacheUpdatedAt;
+
+  @override
+  Future<void> setCacheUpdatedAt(DateTime timestamp) async {
+    _cacheUpdatedAt = timestamp;
+  }
 }
 
 class SupabaseGarageRepository
@@ -196,10 +247,13 @@ class SupabaseGarageRepository
         NearbyGarageRepository,
         OwnerGarageRepository,
         CustomerWorkflowRepository,
-        ModerationRepository {
+        ModerationRepository,
+        RemoteGarageRepository {
   final SupabaseClient client;
-  final SqfliteGarageRepository local;
+  final GarageRepository local;
   List<Garage>? _initialRemoteGarages;
+  @override
+  bool lastReadWasOffline = false;
 
   SupabaseGarageRepository({required this.client, required this.local});
 
@@ -207,9 +261,10 @@ class SupabaseGarageRepository
   Future<void> seedIfEmpty(List<Garage> garages) async {
     try {
       _initialRemoteGarages = await _fetchGarages(owned: false);
-      await _cache(_initialRemoteGarages!);
+      await _cache(_initialRemoteGarages!, replacePublicSnapshot: true);
+      lastReadWasOffline = false;
     } catch (_) {
-      await local.seedIfEmpty(garages);
+      lastReadWasOffline = true;
     }
   }
 
@@ -220,9 +275,11 @@ class SupabaseGarageRepository
     if (initial != null) return initial;
     try {
       final garages = await _fetchGarages(owned: false);
-      await _cache(garages);
+      await _cache(garages, replacePublicSnapshot: true);
+      lastReadWasOffline = false;
       return garages;
     } catch (_) {
+      lastReadWasOffline = true;
       return local.getGarages();
     }
   }
@@ -243,7 +300,9 @@ class SupabaseGarageRepository
       throw StateError('Connexion requise pour gérer un garage.');
     }
     final garages = await _fetchGarages(owned: true);
-    await _cache(garages);
+    await _cache(
+      garages.where((garage) => garage.reviewStatus == 'approved').toList(),
+    );
     return garages;
   }
 
@@ -260,10 +319,20 @@ class SupabaseGarageRepository
   }
 
   @override
+  Future<void> removeGarageFromCache(String id) =>
+      local.removeGarageFromCache(id);
+
+  @override
+  Future<DateTime?> getCacheUpdatedAt() => local.getCacheUpdatedAt();
+
+  @override
+  Future<void> setCacheUpdatedAt(DateTime timestamp) =>
+      local.setCacheUpdatedAt(timestamp);
+
+  @override
   Future<void> deleteGarage(String id) async {
     await client.from('garages').delete().eq('id', id);
-    final db = await local.database.instance;
-    await db.delete('garages', where: 'id = ?', whereArgs: [id]);
+    await local.removeGarageFromCache(id);
   }
 
   @override
@@ -291,6 +360,14 @@ class SupabaseGarageRepository
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
+
+  @override
+  Stream<List<Map<String, dynamic>>> watchGarageRequests(String garageId) =>
+      client
+          .from('service_requests')
+          .stream(primaryKey: ['id'])
+          .eq('garage_id', garageId)
+          .order('created_at', ascending: false);
 
   @override
   Future<List<Map<String, dynamic>>> getCustomerRequests() async {
@@ -578,9 +655,11 @@ class SupabaseGarageRepository
           .whereType<Map<String, dynamic>>()
           .map(Garage.fromSupabaseMap)
           .toList(growable: false);
-      await _cache(garages);
+      await _cache(garages, replacePublicSnapshot: true);
+      lastReadWasOffline = false;
       return garages;
     } catch (_) {
+      lastReadWasOffline = true;
       final cached = await local.getGarages();
       return cached
           .where(
@@ -605,11 +684,26 @@ class SupabaseGarageRepository
     }
   }
 
-  Future<void> _cache(List<Garage> garages) async {
+  Future<void> _cache(
+    List<Garage> garages, {
+    bool replacePublicSnapshot = false,
+  }) async {
+    if (replacePublicSnapshot) {
+      final current = await local.getGarages();
+      final publicIds = garages.map((garage) => garage.id).toSet();
+      for (final garage in current) {
+        if (!publicIds.contains(garage.id)) {
+          await local.removeGarageFromCache(garage.id);
+        }
+      }
+    }
     for (final garage in garages) {
       if (garage.reviewStatus == 'approved') {
         await local.upsertGarage(garage);
       }
+    }
+    if (replacePublicSnapshot) {
+      await local.setCacheUpdatedAt(DateTime.now());
     }
   }
 

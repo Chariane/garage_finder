@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -27,7 +28,9 @@ Future<void> main() async {
     }
   }
 
-  final localRepository = SqfliteGarageRepository(GarageDatabase());
+  final GarageRepository localRepository = kIsWeb
+      ? InMemoryGarageRepository()
+      : SqfliteGarageRepository(GarageDatabase());
   final repository = supabaseClient == null
       ? localRepository
       : SupabaseGarageRepository(

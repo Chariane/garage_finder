@@ -20,7 +20,7 @@ class GarageDatabase {
     _database = await _factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE garages (
@@ -57,6 +57,12 @@ class GarageDatabase {
               createdAt INTEGER NOT NULL
             )
           ''');
+          await db.execute('''
+            CREATE TABLE app_metadata (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL
+            )
+          ''');
           await db.execute('CREATE INDEX idx_garages_city ON garages(city)');
           await db.execute(
             'CREATE INDEX idx_garages_specialty ON garages(specialty)',
@@ -84,6 +90,14 @@ class GarageDatabase {
             await db.execute(
               'ALTER TABLE garages ADD COLUMN availabilityUpdatedAt TEXT',
             );
+          }
+          if (oldVersion < 5) {
+            await db.execute('''
+              CREATE TABLE app_metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+              )
+            ''');
           }
         },
       ),

@@ -11,6 +11,7 @@ import '../core/localization/app_localizations.dart';
 import '../models/garage.dart';
 import '../repositories/garage_repository.dart';
 import '../theme/app_theme.dart';
+import '../utils/contact_links.dart';
 import '../widgets/garage_image.dart';
 
 Future<void> _launchExternal(
@@ -183,6 +184,28 @@ class DetailScreen extends StatelessWidget {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        final uri = whatsappUri(
+                          garage.phone,
+                          message:
+                              'Bonjour, je vous contacte via Garage Finder au sujet de ${garage.name}. Êtes-vous disponible ?',
+                        );
+                        if (uri == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(l10n.t('invalidPhone'))),
+                          );
+                          return;
+                        }
+                        _launchExternal(context, uri, l10n.t('launchFailed'));
+                      },
+                      icon: const Icon(Icons.chat_outlined),
+                      label: Text(l10n.t('contactWhatsApp')),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   if (garage.reviewStatus == 'approved')
@@ -414,6 +437,10 @@ class DetailScreen extends StatelessWidget {
     final repository = context.read<GarageController>().repository;
     final controller = context.read<GarageController>();
     final messenger = ScaffoldMessenger.of(context);
+    if (!auth.isSignedIn && auth.isConfigured) {
+      context.push('/account');
+      return;
+    }
     if (!auth.isSignedIn ||
         auth.isGarageOwner ||
         repository is! CustomerWorkflowRepository) {
@@ -508,6 +535,10 @@ class DetailScreen extends StatelessWidget {
     final auth = context.read<AuthController>();
     final repository = context.read<GarageController>().repository;
     final messenger = ScaffoldMessenger.of(context);
+    if (!auth.isSignedIn && auth.isConfigured) {
+      context.push('/account');
+      return;
+    }
     if (!auth.isSignedIn ||
         auth.isGarageOwner ||
         repository is! CustomerWorkflowRepository) {

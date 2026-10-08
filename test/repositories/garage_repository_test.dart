@@ -38,4 +38,10 @@ void main() {
     await repository.setFavorite(id, false);
     expect(await repository.getFavoriteIds(), isEmpty);
   });
+
+  test('cache freshness timestamp persists in SQLite', () async {
+    final timestamp = DateTime.utc(2026, 10, 8, 9, 30);
+    await repository.setCacheUpdatedAt(timestamp);
+    expect(await repository.getCacheUpdatedAt(), timestamp.toLocal());
+  });
 }

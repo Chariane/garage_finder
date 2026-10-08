@@ -60,6 +60,10 @@ class _GarageOwnerFormScreenState extends State<GarageOwnerFormScreen> {
   @override
   void initState() {
     super.initState();
+    final accountLocation = context.read<AuthController>().user?.userMetadata;
+    _address.text = accountLocation?['garage_address']?.toString() ?? '';
+    _latitude.text = accountLocation?['garage_latitude']?.toString() ?? '';
+    _longitude.text = accountLocation?['garage_longitude']?.toString() ?? '';
     final garage = widget.initialGarage;
     if (garage == null) return;
     _name.text = garage.name;

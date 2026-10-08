@@ -7,6 +7,7 @@ import '../core/localization/app_localizations.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/garage_card.dart';
 import '../widgets/garage_image.dart';
+import '../widgets/offline_data_banner.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -39,6 +40,10 @@ class HomeScreen extends StatelessWidget {
       ),
       body: CustomScrollView(
         slivers: [
+          if (controller.isShowingOfflineData)
+            SliverToBoxAdapter(
+              child: OfflineDataBanner(lastUpdated: controller.cacheUpdatedAt),
+            ),
           SliverToBoxAdapter(
             child: Stack(
               alignment: Alignment.bottomLeft,

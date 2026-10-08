@@ -22,7 +22,9 @@ class GarageController extends ChangeNotifier {
   int? _maximumPriceCfa;
 
   bool _isLoading = false;
+  bool _isShowingOfflineData = false;
   String? _errorMessage;
+  DateTime? _cacheUpdatedAt;
   String _query = '';
   String? _city;
   String? _specialty;
@@ -30,6 +32,8 @@ class GarageController extends ChangeNotifier {
   GarageSortMode _sortMode = GarageSortMode.distance;
 
   bool get isLoading => _isLoading;
+  bool get isShowingOfflineData => _isShowingOfflineData;
+  DateTime? get cacheUpdatedAt => _cacheUpdatedAt;
   String? get errorMessage => _errorMessage;
   List<Garage> get garages => List.unmodifiable(_garages);
   Set<String> get favoriteIds => Set.unmodifiable(_favoriteIds);
@@ -74,6 +78,10 @@ class GarageController extends ChangeNotifier {
       _favoriteIds
         ..clear()
         ..addAll(await repository.getFavoriteIds());
+      _cacheUpdatedAt = await repository.getCacheUpdatedAt();
+      _isShowingOfflineData =
+          repository is RemoteGarageRepository &&
+          (repository as RemoteGarageRepository).lastReadWasOffline;
     } catch (error) {
       _errorMessage = error.toString();
     } finally {
@@ -94,7 +102,7 @@ class GarageController extends ChangeNotifier {
     _searchRadiusMeters = radiusMeters;
     notifyListeners();
     try {
-      final List<Garage> results;
+      List<Garage> results;
       final source = repository;
       if (source is NearbyGarageRepository) {
         results = await (source as NearbyGarageRepository).findNearby(
@@ -128,11 +136,66 @@ class GarageController extends ChangeNotifier {
             .where((garage) => garage.distanceKm * 1000 <= radiusMeters)
             .toList(growable: false);
       }
+      _isShowingOfflineData =
+          repository is RemoteGarageRepository &&
+          (repository as RemoteGarageRepository).lastReadWasOffline;
+      if (_isShowingOfflineData) {
+        results = GarageFilters.filterAndSort(
+          garages: results,
+          query: _query,
+          city: _city,
+          specialty: _specialty,
+          sosOnly: _sosOnly,
+          sortMode: _sortMode,
+          minimumPriceCfa: _minimumPriceCfa,
+          maximumPriceCfa: _maximumPriceCfa,
+        );
+        _cacheUpdatedAt = await repository.getCacheUpdatedAt();
+      }
       _garages
         ..clear()
         ..addAll(results);
     } catch (error) {
-      _errorMessage = error.toString();
+      try {
+        final cached = await repository.getGarages();
+        final nearby = cached
+            .where(
+              (garage) => garage.latitude != null && garage.longitude != null,
+            )
+            .map((garage) {
+              final meters = Geolocator.distanceBetween(
+                latitude,
+                longitude,
+                garage.latitude!,
+                garage.longitude!,
+              );
+              return garage.copyWith(
+                distanceKm: meters / 1000,
+                distanceKnown: true,
+              );
+            })
+            .where((garage) => garage.distanceKm * 1000 <= radiusMeters)
+            .toList(growable: false);
+        _garages
+          ..clear()
+          ..addAll(
+            GarageFilters.filterAndSort(
+              garages: nearby,
+              query: _query,
+              city: _city,
+              specialty: _specialty,
+              sosOnly: _sosOnly,
+              sortMode: _sortMode,
+              minimumPriceCfa: _minimumPriceCfa,
+              maximumPriceCfa: _maximumPriceCfa,
+            ),
+          );
+        _cacheUpdatedAt = await repository.getCacheUpdatedAt();
+        _isShowingOfflineData = true;
+        _errorMessage = null;
+      } catch (_) {
+        _errorMessage = error.toString();
+      }
     } finally {
       _isLoading = false;
       notifyListeners();

@@ -10,6 +10,7 @@ Application mobile pour rechercher des garages et services de dépannage au Bén
 ## Fonctionnalités
 
 - Accueil, recherche, détails, favoris, ajout de garage et réglages.
+- Recherche publique sans compte avec localisation, rayon, ville, spécialité, budget, disponibilité et tri par proximité/avis/temps de réponse; un compte client est demandé uniquement pour envoyer des demandes et publier des avis.
 - Inscription/connexion e-mail, confirmation de compte, réinitialisation du mot de passe et rôles client/garagiste.
 - Espace garagiste, création/suppression de fiches et statut de modération.
 - Modification des fiches, horaires par jour et disponibilité actuelle (disponible, occupé, urgences seulement, indisponible).
@@ -18,7 +19,10 @@ Application mobile pour rechercher des garages et services de dépannage au Bén
 - Recherche par GPS, adresse géocodée ou coordonnées, avec rayon réglable; filtres texte, ville, spécialité, SOS et tri.
 - Formulaire garage avec coordonnées exactes, services, budget, disponibilité et photo facultative.
 - Itinéraire ouvert dans Google Maps; les coordonnées client restent en mémoire et ne sont pas envoyées au serveur hors requête de proximité.
-- Cache SQLite des fiches publiques et favoris; création/modification de fiches et téléversement de photos nécessitent une connexion.
+- Appel téléphonique et ouverture d’un brouillon WhatsApp prérempli, sans envoi automatique.
+- Demande de dépannage avec rappel des étapes, accès direct à l’appel/WhatsApp pour l’urgence et suivi dans l’espace client.
+- Cache SQLite des garages publics vérifiés et favoris; recherches de proximité hors ligne avec filtres locaux et date de dernière synchronisation. Les nouvelles demandes, avis et modifications de fiches nécessitent une connexion.
+- Checklist de configuration garagiste : coordonnées, position, fiche et validation.
 - Interface française et anglaise, thème clair/sombre.
 - Images chargées à la demande dans les listes et décodées à une taille adaptée aux vignettes.
 - Contrôles accessibles avec libellés sémantiques et cibles tactiles Material.
@@ -42,13 +46,13 @@ lib/
   widgets/            Composants partagés, images optimisées
 ```
 
-`GarageController` dépend de `GarageRepository`. Le dépôt Supabase utilise PostGIS pour le rayon et SQLite comme cache de lecture hors ligne. Les nouveaux garages restent invisibles au public jusqu’à leur modération.
+`GarageController` dépend de `GarageRepository`. Le dépôt Supabase utilise PostGIS pour le rayon et SQLite comme cache de lecture hors ligne sur mobile et desktop. En cas de coupure, la recherche à proximité se rabat sur le cache, applique les filtres localement et indique sa date de fraîcheur. Un cache vide ne déclenche pas de fausses fiches de démonstration en mode distant. L’aperçu web utilise un cache mémoire. Les nouveaux garages restent invisibles au public jusqu’à leur modération.
 
 ## Backend distant
 
 Le backend cible est Supabase : Supabase Auth pour les comptes, PostgreSQL avec PostGIS pour les garages et la recherche par proximité, et Supabase Storage pour les photos. SQLite reste le cache local; le serveur doit être la source de vérité dès que le client Supabase est configuré.
 
-Les migrations sont dans `supabase/migrations/`. Exécute-les dans l’ordre : la première crée profils, garages, avis, RLS, photos et `nearby_garages`; la seconde ajoute les demandes de dépannage, transitions de statut, ETA, disponibilité, notifications temps réel et signalements; la troisième ajoute l’annulation par le client et l’expiration automatique des demandes sans réponse après 30 minutes. Elle nécessite l’extension `pg_cron`, disponible dans Supabase et à activer si le projet ne l’a pas déjà activée. Les demandes limitent les positions précises aux cas où le client coche explicitement le partage; ces coordonnées sont conservées avec sa demande.
+Les migrations sont dans `supabase/migrations/`. Exécute-les dans l’ordre : la première crée profils, garages, avis, RLS, photos et `nearby_garages`; la seconde ajoute les demandes de dépannage, transitions de statut, ETA, disponibilité, notifications temps réel et signalements; la troisième ajoute l’annulation par le client et l’expiration automatique des demandes sans réponse après 30 minutes; la quatrième enregistre l’adresse et les coordonnées obligatoires du garage dans le profil propriétaire. La troisième nécessite l’extension `pg_cron`, disponible dans Supabase et à activer si le projet ne l’a pas déjà activée. Les demandes limitent les positions précises aux cas où le client coche explicitement le partage; ces coordonnées sont conservées avec sa demande.
 
 Pour l’activer : crée un projet Supabase, vérifie que PostGIS est installé dans le schéma `extensions` et active `pg_cron`, puis applique les migrations avec Supabase CLI ou l’éditeur SQL du tableau de bord. Active la confirmation des e-mails et configure les URL Auth. Fournis `SUPABASE_URL` et la clé publique `publishable` au lancement; ne mets jamais une clé `service_role` dans Flutter ni dans Git. La modération permet de valider/refuser les garages et de traiter les signalements; elle exige un claim `app_metadata.role=admin`, attribué uniquement par un environnement de confiance (jamais par le client mobile). Un refus documenté renvoie automatiquement la fiche en attente après correction d’un champ substantiel. Les clés et le déploiement restent propres à l’environnement.
 
@@ -65,10 +69,12 @@ Un client ne peut noter un garage qu’après qu’une demande associée est mar
 git clone https://github.com/Chariane/garage_finder.git
 cd garage_finder
 flutter pub get
-flutter run --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=<publishable-key>
+cp config/supabase.example.json config/supabase.json
+# Renseigner l’URL Supabase et la clé publishable dans config/supabase.json
+bash tool/run.sh chrome
 ```
 
-Sans ces deux paramètres, l’application démarre en mode démonstration SQLite. N’ajoute pas les valeurs réelles dans les scripts partagés ou le dépôt.
+Le fichier `config/supabase.json` est ignoré par Git. Pour lancer sur l’appareil Flutter par défaut, utilise `bash tool/run.sh`; pour Linux, `bash tool/run.sh linux`. Le lanceur fournit le fichier avec `--dart-define-from-file`. La clé `publishable` est destinée aux clients; ne mets jamais une clé `service_role` dans Flutter ni dans Git. Sans configuration Supabase, l’application démarre en mode démonstration SQLite.
 
 La base `garage_finder.db` est créée au premier démarrage. Si elle est vide, elle est initialisée avec les données de démonstration.
 

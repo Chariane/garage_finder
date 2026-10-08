@@ -20,6 +20,12 @@ void main() {
     expect((await repository.getGarages()).length, garages.length);
   });
 
+  test('cache freshness timestamp is persisted by the repository', () async {
+    final timestamp = DateTime.utc(2026, 10, 8, 9, 30);
+    await repository.setCacheUpdatedAt(timestamp);
+    expect(await repository.getCacheUpdatedAt(), timestamp);
+  });
+
   test('filter setters update filtered results', () {
     final city = controller.garages.first.city;
     controller.setCity(city);
