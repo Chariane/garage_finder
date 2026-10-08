@@ -40,7 +40,7 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: flutter test integration_test/app_flow_test.dart
+          script: flutter test --reporter expanded integration_test/app_flow_test.dart
       - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:

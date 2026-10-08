@@ -12,6 +12,14 @@ import 'package:provider/provider.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
+  Future<void> settle(WidgetTester tester) async {
+    for (var frame = 0; frame < 200; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (!tester.binding.hasScheduledFrame) return;
+    }
+    fail('The UI did not settle within 20 seconds.');
+  }
+
   Future<GarageController> seededController() async {
     final controller = GarageController(repository: InMemoryGarageRepository());
     await controller.load();
@@ -41,15 +49,15 @@ void main() {
     final controller = await seededController();
     router.go('/list');
     await tester.pumpWidget(app(controller));
-    await tester.pumpAndSettle();
+    await settle(tester);
     final target = controller.garages.first;
     await tester.enterText(find.byType(TextField).first, target.name);
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text(target.name).first);
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.text(target.name), findsWidgets);
     await tester.tap(find.byTooltip('Ajouter aux favoris'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(controller.isFavorite(target.id), isTrue);
   });
 
@@ -65,7 +73,7 @@ void main() {
     await controller.addGarage(added);
     router.go('/list');
     await tester.pumpWidget(app(controller));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.text('Garage Intégration'), findsOneWidget);
   });
 }
