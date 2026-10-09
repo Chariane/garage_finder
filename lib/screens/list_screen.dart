@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../controllers/garage_controller.dart';
 import '../core/localization/app_localizations.dart';
 import '../utils/garage_filters.dart';
+import '../utils/garage_specialties.dart';
 import '../widgets/garage_card.dart';
 import '../widgets/offline_data_banner.dart';
 import '../widgets/location_search_dialog.dart';
@@ -93,6 +94,94 @@ class _ListScreenState extends State<ListScreen> {
       minimumCfa: result.minimum,
       maximumCfa: result.maximum,
     );
+    if (controller.hasSearchLocation) {
+      await controller.searchNearby(
+        latitude: controller.userLatitude!,
+        longitude: controller.userLongitude!,
+        radiusMeters: controller.searchRadiusMeters,
+      );
+    }
+  }
+
+  Future<void> _editSpecialties(
+    GarageController controller,
+    AppLocalizations l10n,
+  ) async {
+    final selected = Set<String>.of(controller.selectedSpecialties);
+    final available = {
+      ...GarageSpecialties.values,
+      ...controller.specialties,
+    }.toList()..sort();
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.72,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.t('specialtiesFilterTitle'),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${selected.length} ${l10n.t('specialtiesSelected')}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          for (final specialty in available)
+                            FilterChip(
+                              label: Text(
+                                GarageSpecialties.label(specialty, l10n),
+                              ),
+                              selected: selected.contains(specialty),
+                              onSelected: (value) => setSheetState(() {
+                                if (value) {
+                                  selected.add(specialty);
+                                } else {
+                                  selected.remove(specialty);
+                                }
+                              }),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => setSheetState(selected.clear),
+                        child: Text(l10n.t('clearSpecialties')),
+                      ),
+                      const Spacer(),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, selected),
+                        child: Text(l10n.t('applyFilters')),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    controller.setSpecialties(result);
     if (controller.hasSearchLocation) {
       await controller.searchNearby(
         latitude: controller.userLatitude!,
@@ -242,30 +331,16 @@ class _ListScreenState extends State<ListScreen> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: DropdownButtonFormField<String?>(
-                        initialValue: controller.specialty,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          labelText: l10n.t('allSpecialties'),
+                      child: OutlinedButton.icon(
+                        onPressed: () => _editSpecialties(controller, l10n),
+                        icon: const Icon(Icons.tune),
+                        label: Text(
+                          controller.selectedSpecialties.isEmpty
+                              ? l10n.t('allSpecialties')
+                              : '${controller.selectedSpecialties.length} ${l10n.t('specialtiesSelected')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        items: [
-                          DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text(
-                              l10n.t('allSpecialties'),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          for (final specialty in controller.specialties)
-                            DropdownMenuItem<String?>(
-                              value: specialty,
-                              child: Text(
-                                specialty,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                        onChanged: controller.setSpecialty,
                       ),
                     ),
                   ],

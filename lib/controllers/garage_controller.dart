@@ -27,7 +27,7 @@ class GarageController extends ChangeNotifier {
   DateTime? _cacheUpdatedAt;
   String _query = '';
   String? _city;
-  String? _specialty;
+  final Set<String> _selectedSpecialties = {};
   bool _sosOnly = false;
   GarageSortMode _sortMode = GarageSortMode.distance;
 
@@ -39,7 +39,9 @@ class GarageController extends ChangeNotifier {
   Set<String> get favoriteIds => Set.unmodifiable(_favoriteIds);
   String get query => _query;
   String? get city => _city;
-  String? get specialty => _specialty;
+  String? get specialty =>
+      _selectedSpecialties.length == 1 ? _selectedSpecialties.first : null;
+  Set<String> get selectedSpecialties => Set.unmodifiable(_selectedSpecialties);
   bool get sosOnly => _sosOnly;
   GarageSortMode get sortMode => _sortMode;
   double? get userLatitude => _userLatitude;
@@ -56,7 +58,7 @@ class GarageController extends ChangeNotifier {
     garages: _garages,
     query: _query,
     city: _city,
-    specialty: _specialty,
+    specialties: _selectedSpecialties,
     sosOnly: _sosOnly,
     sortMode: _sortMode,
     minimumPriceCfa: _minimumPriceCfa,
@@ -111,7 +113,7 @@ class GarageController extends ChangeNotifier {
           radiusMeters: radiusMeters,
           query: _query,
           city: _city,
-          specialty: _specialty,
+          services: _selectedSpecialties.toList(growable: false),
           minimumPriceCfa: _minimumPriceCfa,
           maximumPriceCfa: _maximumPriceCfa,
         );
@@ -144,7 +146,7 @@ class GarageController extends ChangeNotifier {
           garages: results,
           query: _query,
           city: _city,
-          specialty: _specialty,
+          specialties: _selectedSpecialties,
           sosOnly: _sosOnly,
           sortMode: _sortMode,
           minimumPriceCfa: _minimumPriceCfa,
@@ -183,7 +185,7 @@ class GarageController extends ChangeNotifier {
               garages: nearby,
               query: _query,
               city: _city,
-              specialty: _specialty,
+              specialties: _selectedSpecialties,
               sosOnly: _sosOnly,
               sortMode: _sortMode,
               minimumPriceCfa: _minimumPriceCfa,
@@ -243,7 +245,13 @@ class GarageController extends ChangeNotifier {
   }
 
   void setSpecialty(String? value) {
-    _specialty = value;
+    setSpecialties(value == null ? const {} : {value});
+  }
+
+  void setSpecialties(Set<String> values) {
+    _selectedSpecialties
+      ..clear()
+      ..addAll(values);
     notifyListeners();
   }
 
@@ -272,7 +280,7 @@ class GarageController extends ChangeNotifier {
   void clearFilters() {
     _query = '';
     _city = null;
-    _specialty = null;
+    _selectedSpecialties.clear();
     _sosOnly = false;
     _minimumPriceCfa = null;
     _maximumPriceCfa = null;

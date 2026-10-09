@@ -61,7 +61,7 @@ class AppLogo extends StatelessWidget {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: 'Garage ',
+                    text: 'Garage',
                     style: TextStyle(
                       color: foreground,
                       fontSize: titleSize,

@@ -36,6 +36,26 @@ void main() {
     );
   });
 
+  test('multi-specialty filter matches secondary garage services', () {
+    final primary = garages.first.copyWith(
+      specialty: 'auto',
+      services: const ['auto', 'moto', 'depannage'],
+    );
+    final other = garages[1].copyWith(
+      id: 'other-specialty',
+      specialty: 'pneumatiques',
+      services: const ['pneumatiques'],
+    );
+
+    final result = GarageFilters.filterAndSort(
+      garages: [primary, other],
+      specialties: {'moto', 'pneumatiques'},
+    );
+
+    expect(result, containsAll([primary, other]));
+    expect(result, hasLength(2));
+  });
+
   test('budget filter matches overlapping garage price ranges', () {
     final result = GarageFilters.filterAndSort(
       garages: garages,

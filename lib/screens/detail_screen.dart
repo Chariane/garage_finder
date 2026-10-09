@@ -12,6 +12,7 @@ import '../models/garage.dart';
 import '../repositories/garage_repository.dart';
 import '../theme/app_theme.dart';
 import '../utils/contact_links.dart';
+import '../utils/garage_specialties.dart';
 import '../widgets/garage_image.dart';
 
 Future<void> _launchExternal(
@@ -116,7 +117,10 @@ class DetailScreen extends StatelessWidget {
                       children: [
                         _Pill(
                           icon: Icons.build_rounded,
-                          label: garage.specialty,
+                          label: GarageSpecialties.label(
+                            garage.specialty,
+                            l10n,
+                          ),
                           color: AppTheme.accent,
                         ),
                         const SizedBox(height: 12),
@@ -370,7 +374,9 @@ class DetailScreen extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: garage.services.map((service) {
-                      return _ServicePill(label: service);
+                      return _ServicePill(
+                        label: GarageSpecialties.label(service, l10n),
+                      );
                     }).toList(),
                   ),
                   const SizedBox(height: 24),

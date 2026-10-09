@@ -33,10 +33,7 @@ final router = GoRouter(
           path: '/favorites',
           builder: (context, state) => const FavoritesScreen(),
         ),
-        GoRoute(
-          path: '/form',
-          builder: (context, state) => const GarageOwnerFormScreen(),
-        ),
+        GoRoute(path: '/form', redirect: (context, state) => '/garage/new'),
         GoRoute(
           path: '/garage/new',
           builder: (context, state) => const GarageOwnerFormScreen(),

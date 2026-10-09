@@ -146,7 +146,35 @@ class _ModerationScreenState extends State<ModerationScreen> {
               itemBuilder: (context, garage) => ListTile(
                 title: Text(garage['name'] as String? ?? ''),
                 subtitle: Text(
-                  '${garage['city'] ?? ''} · ${garage['address'] ?? ''}\n${l10n.t('reviewStatus_${garage['review_status']}')}',
+                  [
+                    '${garage['city'] ?? ''} · ${garage['address'] ?? ''}',
+                    l10n.t('reviewStatus_${garage['review_status']}'),
+                    garage['phone_verified_at'] == null
+                        ? l10n.t('phoneVerificationRequired')
+                        : l10n.t('phoneVerified'),
+                    garage['on_site_verified_at'] == null
+                        ? l10n.t('onSitePresenceMissing')
+                        : l10n.t('onSitePresenceVerified'),
+                    l10n.t(switch (garage['automated_review_status']) {
+                      'passed' => 'autoChecksPassedShort',
+                      'needs_review' => 'autoNeedsReviewShort',
+                      _ => 'autoNotCheckedShort',
+                    }),
+                    for (final reason
+                        in (garage['automated_review_reasons']
+                                    as List<dynamic>? ??
+                                const [])
+                            .whereType<String>())
+                      l10n.t(switch (reason) {
+                        'phone_used_by_another_owner' =>
+                          'phoneUsedByAnotherOwner',
+                        'possible_duplicate_nearby' =>
+                          'possibleDuplicateNearby',
+                        'garage_photo_missing' => 'garagePhotoMissing',
+                        'on_site_presence_missing' => 'onSitePresenceMissing',
+                        _ => 'autoNeedsReviewShort',
+                      }),
+                  ].join('\n'),
                 ),
                 isThreeLine: true,
                 trailing: PopupMenuButton<String>(

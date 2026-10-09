@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/garage.dart';
 import '../theme/app_theme.dart';
 import '../core/localization/app_localizations.dart';
+import '../utils/garage_specialties.dart';
 import 'garage_image.dart';
 
 class GarageCard extends StatelessWidget {
@@ -197,7 +198,13 @@ class GarageCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            garage.services.take(2).join(' · '),
+                            garage.services
+                                .take(2)
+                                .map(
+                                  (service) =>
+                                      GarageSpecialties.label(service, l10n),
+                                )
+                                .join(' · '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

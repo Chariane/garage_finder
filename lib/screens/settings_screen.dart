@@ -72,7 +72,7 @@ class SettingsScreen extends StatelessWidget {
             ),
           ListTile(
             leading: const Icon(Icons.verified_user_outlined),
-            title: const Text('Garage Finder'),
+            title: const Text('GarageFinder'),
             subtitle: Text(l10n.t('version')),
           ),
         ],

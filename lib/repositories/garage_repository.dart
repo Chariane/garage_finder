@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/database/garage_database.dart';
 import '../models/garage.dart';
+import '../utils/phone_verification.dart';
 
 abstract class GarageRepository {
   Future<List<Garage>> getGarages();
@@ -38,6 +39,22 @@ abstract interface class NearbyGarageRepository {
 
 abstract interface class OwnerGarageRepository {
   Future<List<Garage>> getOwnedGarages();
+  Future<String> requestGaragePhoneCode(String phone);
+  Future<void> verifyGaragePhoneCode({
+    required String challengeId,
+    required String code,
+  });
+  Future<void> recordGarageOnSitePresence({
+    required String garageId,
+    required double latitude,
+    required double longitude,
+    required double accuracyMeters,
+    required bool locationIsMocked,
+  });
+  Future<bool> isGaragePhoneVerified({
+    required String garageId,
+    required String phone,
+  });
   Future<void> deleteGarage(String id);
   Future<String> uploadGaragePhoto({
     required String garageId,
@@ -307,6 +324,90 @@ class SupabaseGarageRepository
   }
 
   @override
+  Future<String> requestGaragePhoneCode(String phone) async {
+    final payload = await _invokeGaragePhoneVerification({
+      'action': 'send_code',
+      'phone': phone,
+    });
+    final challengeId = payload['challengeId'];
+    if (challengeId is! String || challengeId.isEmpty) {
+      throw StateError('verification_unavailable');
+    }
+    return challengeId;
+  }
+
+  @override
+  Future<void> verifyGaragePhoneCode({
+    required String challengeId,
+    required String code,
+  }) async {
+    final payload = await _invokeGaragePhoneVerification({
+      'action': 'verify_code',
+      'challengeId': challengeId,
+      'code': code,
+    });
+    if (payload['verified'] != true) {
+      throw StateError('invalid_phone_code');
+    }
+  }
+
+  @override
+  Future<void> recordGarageOnSitePresence({
+    required String garageId,
+    required double latitude,
+    required double longitude,
+    required double accuracyMeters,
+    required bool locationIsMocked,
+  }) async {
+    final payload = await _invokeGaragePhoneVerification({
+      'action': 'record_presence',
+      'garageId': garageId,
+      'latitude': latitude,
+      'longitude': longitude,
+      'accuracyMeters': accuracyMeters,
+      'locationIsMocked': locationIsMocked,
+    });
+    if (payload['verified'] != true) {
+      throw StateError('on_site_presence_failed');
+    }
+  }
+
+  @override
+  Future<bool> isGaragePhoneVerified({
+    required String garageId,
+    required String phone,
+  }) async {
+    final row = await client
+        .from('garages')
+        .select('phone,phone_verified_at')
+        .eq('id', garageId)
+        .maybeSingle();
+    return row != null &&
+        row['phone_verified_at'] != null &&
+        normalizePhoneForVerification(row['phone'] as String? ?? '') ==
+            normalizePhoneForVerification(phone);
+  }
+
+  Future<Map<String, dynamic>> _invokeGaragePhoneVerification(
+    Map<String, Object?> body,
+  ) async {
+    try {
+      final response = await client.functions.invoke(
+        'garage-phone-verification',
+        body: body,
+      );
+      if (response.data is Map) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+      throw StateError('verification_unavailable');
+    } on FunctionException catch (error) {
+      final details = error.details;
+      final code = details is Map ? details['error'] : null;
+      throw StateError(code?.toString() ?? 'verification_unavailable');
+    }
+  }
+
+  @override
   Future<void> upsertGarage(Garage garage) async {
     final owner = client.auth.currentUser;
     if (owner == null) throw StateError('Connexion requise.');
@@ -353,12 +454,11 @@ class SupabaseGarageRepository
 
   @override
   Future<List<Map<String, dynamic>>> getGarageRequests(String garageId) async {
-    final rows = await client
-        .from('service_requests')
-        .select()
-        .eq('garage_id', garageId)
-        .order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(rows);
+    final rows = await client.rpc(
+      'owner_garage_requests',
+      params: {'p_garage_id': garageId},
+    );
+    return List<Map<String, dynamic>>.from(rows as List);
   }
 
   @override
@@ -367,7 +467,8 @@ class SupabaseGarageRepository
           .from('service_requests')
           .stream(primaryKey: ['id'])
           .eq('garage_id', garageId)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .asyncMap((_) => getGarageRequests(garageId));
 
   @override
   Future<List<Map<String, dynamic>>> getCustomerRequests() async {
@@ -560,7 +661,7 @@ class SupabaseGarageRepository
     final rows = await client
         .from('garages')
         .select(
-          'id,name,address,city,phone,specialty,services,description,opening_hours,price_min_cfa,price_max_cfa,photo_urls,is_open,availability_status,availability_updated_at,response_time_minutes,review_status,moderation_note',
+          'id,name,address,city,phone,specialty,services,description,opening_hours,price_min_cfa,price_max_cfa,photo_urls,is_open,availability_status,availability_updated_at,response_time_minutes,review_status,moderation_note,phone_verified_at,on_site_verified_at,automated_review_status,automated_review_reasons',
         )
         .inFilter('review_status', ['pending', 'rejected'])
         .order('created_at', ascending: true)
@@ -634,6 +735,7 @@ class SupabaseGarageRepository
     int? minimumPriceCfa,
     int? maximumPriceCfa,
   }) async {
+    final serviceFilters = {...?services, ?_nonEmpty(specialty)};
     try {
       final rows =
           await client.rpc(
@@ -644,8 +746,10 @@ class SupabaseGarageRepository
                   'p_radius_meters': radiusMeters,
                   'p_query': _nonEmpty(query),
                   'p_city': _nonEmpty(city),
-                  'p_specialty': _nonEmpty(specialty),
-                  'p_services': services?.isEmpty == true ? null : services,
+                  'p_specialty': null,
+                  'p_services': serviceFilters.isEmpty
+                      ? null
+                      : serviceFilters.toList(growable: false),
                   'p_min_price_cfa': minimumPriceCfa,
                   'p_max_price_cfa': maximumPriceCfa,
                 },

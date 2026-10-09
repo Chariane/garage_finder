@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -8,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/auth_controller.dart';
 import '../core/localization/app_localizations.dart';
+import '../utils/google_maps_link.dart';
 
 class AccountScreen extends StatefulWidget {
   final bool startWithSignup;
@@ -25,7 +27,8 @@ class _AccountScreenState extends State<AccountScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _garageAddressController = TextEditingController();
-  late final _geocoding = Geocoding(locale: const Locale('fr', 'BJ'));
+  final _garageMapLinkController = TextEditingController();
+  Geocoding? _geocoding;
   double? _garageLatitude;
   double? _garageLongitude;
   bool _isGettingGarageLocation = false;
@@ -38,6 +41,15 @@ class _AccountScreenState extends State<AccountScreen> {
   String? _message;
   String? _error;
   String? _garageLocationError;
+
+  Geocoding? get _platformGeocoding {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return null;
+    }
+    return _geocoding ??= Geocoding(locale: const Locale('fr', 'BJ'));
+  }
 
   @override
   void initState() {
@@ -59,6 +71,7 @@ class _AccountScreenState extends State<AccountScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _garageAddressController.dispose();
+    _garageMapLinkController.dispose();
     super.dispose();
   }
 
@@ -105,12 +118,17 @@ class _AccountScreenState extends State<AccountScreen> {
       setState(() => _garageLocationError = l10n.t('addressRequired'));
       return;
     }
+    final geocoding = _platformGeocoding;
+    if (geocoding == null) {
+      setState(() => _garageLocationError = l10n.t('addressLookupUnavailable'));
+      return;
+    }
     setState(() {
       _isFindingGarageAddress = true;
       _garageLocationError = null;
     });
     try {
-      final locations = await _geocoding.locationFromAddress(
+      final locations = await geocoding.locationFromAddress(
         '$address, Benin',
         locale: const Locale('fr', 'BJ'),
       );
@@ -125,6 +143,23 @@ class _AccountScreenState extends State<AccountScreen> {
     } finally {
       if (mounted) setState(() => _isFindingGarageAddress = false);
     }
+  }
+
+  void _importGarageMapLink() {
+    final l10n = AppLocalizations.of(context);
+    final coordinates = GoogleMapsLink.parse(_garageMapLinkController.text);
+    if (coordinates == null) {
+      setState(() => _garageLocationError = l10n.t('invalidMapLink'));
+      return;
+    }
+    setState(() {
+      _garageLatitude = coordinates.latitude;
+      _garageLongitude = coordinates.longitude;
+      _garageLocationError = null;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.t('mapLinkLoaded'))));
   }
 
   Future<void> _openGarageLocation() async {
@@ -371,6 +406,24 @@ class _AccountScreenState extends State<AccountScreen> {
                       )
                     : const Icon(Icons.my_location),
                 label: Text(l10n.t('useMyLocation')),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _garageMapLinkController,
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  labelText: l10n.t('googleMapsLink'),
+                  helperText: l10n.t('googleMapsLinkHint'),
+                  prefixIcon: const Icon(Icons.link),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _importGarageMapLink,
+                  icon: const Icon(Icons.map_outlined),
+                  label: Text(l10n.t('useMapLink')),
+                ),
               ),
               if (_garageLatitude != null && _garageLongitude != null)
                 ListTile(

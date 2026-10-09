@@ -10,6 +10,7 @@ import '../core/localization/app_localizations.dart';
 import '../models/garage.dart';
 import '../repositories/garage_repository.dart';
 import '../utils/contact_links.dart';
+import '../utils/google_maps_link.dart';
 
 class ServiceRequestScreen extends StatefulWidget {
   final Garage garage;
@@ -25,6 +26,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final _phone = TextEditingController();
   final _vehicle = TextEditingController();
   final _issue = TextEditingController();
+  final _mapLink = TextEditingController();
   bool _shareLocation = false;
   bool _sending = false;
   String? _error;
@@ -60,6 +62,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     _phone.dispose();
     _vehicle.dispose();
     _issue.dispose();
+    _mapLink.dispose();
     super.dispose();
   }
 
@@ -82,7 +85,12 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     try {
       double? latitude;
       double? longitude;
-      if (_shareLocation) {
+      if (_mapLink.text.trim().isNotEmpty) {
+        final coordinates = GoogleMapsLink.parse(_mapLink.text);
+        if (coordinates == null) throw StateError(l10n.t('invalidMapLink'));
+        latitude = coordinates.latitude;
+        longitude = coordinates.longitude;
+      } else if (_shareLocation) {
         if (!await Geolocator.isLocationServiceEnabled()) {
           throw StateError(l10n.t('locationUnavailable'));
         }
@@ -258,6 +266,15 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                   setState(() => _shareLocation = value ?? false),
               title: Text(l10n.t('shareLocationWithGarage')),
               subtitle: Text(l10n.t('locationPrivacyNotice')),
+            ),
+            TextField(
+              controller: _mapLink,
+              keyboardType: TextInputType.url,
+              decoration: InputDecoration(
+                labelText: l10n.t('googleMapsLink'),
+                helperText: l10n.t('requestMapLinkHint'),
+                prefixIcon: const Icon(Icons.link),
+              ),
             ),
             if (_error != null)
               Text(

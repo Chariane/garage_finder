@@ -33,8 +33,11 @@ class GarageFilters {
   }
 
   static List<String> specialties(List<Garage> garages) {
-    final values = garages.map((garage) => garage.specialty).toSet().toList()
-      ..sort();
+    final values = {
+      for (final garage in garages) ...garage.services,
+      for (final garage in garages)
+        if (garage.specialty.trim().isNotEmpty) garage.specialty,
+    }.toList()..sort();
     return values;
   }
 
@@ -43,21 +46,30 @@ class GarageFilters {
     String query = '',
     String? city,
     String? specialty,
+    Set<String>? specialties,
     bool sosOnly = false,
     GarageSortMode sortMode = GarageSortMode.distance,
     int? minimumPriceCfa,
     int? maximumPriceCfa,
   }) {
     final normalizedQuery = query.trim().toLowerCase();
+    final selectedSpecialties =
+        specialties ??
+        {if (specialty != null && specialty.isNotEmpty) specialty};
     final filtered = garages.where((garage) {
       final matchesQuery =
           normalizedQuery.isEmpty ||
           garage.searchableText.contains(normalizedQuery);
       final matchesCity = city == null || city.isEmpty || garage.city == city;
       final matchesSpecialty =
-          specialty == null ||
-          specialty.isEmpty ||
-          garage.specialty == specialty;
+          selectedSpecialties.isEmpty ||
+          selectedSpecialties.any(
+            (selected) =>
+                garage.specialty.toLowerCase() == selected.toLowerCase() ||
+                garage.services.any(
+                  (service) => service.toLowerCase() == selected.toLowerCase(),
+                ),
+          );
       final matchesSos =
           !sosOnly ||
           (garage.isOpen && garage.distanceKnown && garage.distanceKm <= 10);

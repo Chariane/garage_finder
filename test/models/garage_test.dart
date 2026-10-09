@@ -57,12 +57,20 @@ void main() {
         'is_verified': false,
         'review_status': 'pending',
         'moderation_note': 'Adresse incomplète',
+        'phone_verified_at': '2026-10-08T12:00:00Z',
+        'on_site_verified_at': '2026-10-08T12:15:00Z',
+        'automated_review_status': 'needs_review',
+        'automated_review_reasons': ['garage_photo_missing'],
       });
 
       expect(mapped.distanceKm, 1.25);
       expect(mapped.distanceKnown, isTrue);
       expect(mapped.reviewStatus, 'pending');
       expect(mapped.moderationNote, 'Adresse incomplète');
+      expect(mapped.phoneVerifiedAt, DateTime.utc(2026, 10, 8, 12));
+      expect(mapped.onSiteVerifiedAt, DateTime.utc(2026, 10, 8, 12, 15));
+      expect(mapped.automatedReviewStatus, 'needs_review');
+      expect(mapped.automatedReviewReasons, ['garage_photo_missing']);
       expect(mapped.isVerified, isFalse);
       expect(mapped.latitude, 6.37);
       expect(mapped.priceLevel, '10000–50000 FCFA');

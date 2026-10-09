@@ -13,6 +13,7 @@ Application mobile pour rechercher des garages et services de dépannage au Bén
 - Recherche publique sans compte avec localisation, rayon, ville, spécialité, budget, disponibilité et tri par proximité/avis/temps de réponse; un compte client est demandé uniquement pour envoyer des demandes et publier des avis.
 - Inscription/connexion e-mail, confirmation de compte, réinitialisation du mot de passe et rôles client/garagiste.
 - Espace garagiste, création/suppression de fiches et statut de modération.
+- Vérification du téléphone du garage par code SMS (Twilio Verify), puis contrôles de cohérence avant modération.
 - Modification des fiches, horaires par jour et disponibilité actuelle (disponible, occupé, urgences seulement, indisponible).
 - Demande de dépannage avec véhicule, description, téléphone et partage de position facultatif; suivi accepté/en route/terminé avec ETA.
 - Avis clients uniques par compte, signalements et boîte de notifications temps réel dans l’application.
@@ -44,6 +45,9 @@ lib/
   screens/           Écrans et navigation
   utils/             Filtrage et tri métier
   widgets/            Composants partagés, images optimisées
+supabase/
+  functions/         Fonctions Edge (vérification SMS et présence)
+  migrations/        Schéma, politiques RLS et fonctions PostgreSQL
 ```
 
 `GarageController` dépend de `GarageRepository`. Le dépôt Supabase utilise PostGIS pour le rayon et SQLite comme cache de lecture hors ligne sur mobile et desktop. En cas de coupure, la recherche à proximité se rabat sur le cache, applique les filtres localement et indique sa date de fraîcheur. Un cache vide ne déclenche pas de fausses fiches de démonstration en mode distant. L’aperçu web utilise un cache mémoire. Les nouveaux garages restent invisibles au public jusqu’à leur modération.
@@ -52,9 +56,27 @@ lib/
 
 Le backend cible est Supabase : Supabase Auth pour les comptes, PostgreSQL avec PostGIS pour les garages et la recherche par proximité, et Supabase Storage pour les photos. SQLite reste le cache local; le serveur doit être la source de vérité dès que le client Supabase est configuré.
 
-Les migrations sont dans `supabase/migrations/`. Exécute-les dans l’ordre : la première crée profils, garages, avis, RLS, photos et `nearby_garages`; la seconde ajoute les demandes de dépannage, transitions de statut, ETA, disponibilité, notifications temps réel et signalements; la troisième ajoute l’annulation par le client et l’expiration automatique des demandes sans réponse après 30 minutes; la quatrième enregistre l’adresse et les coordonnées obligatoires du garage dans le profil propriétaire. La troisième nécessite l’extension `pg_cron`, disponible dans Supabase et à activer si le projet ne l’a pas déjà activée. Les demandes limitent les positions précises aux cas où le client coche explicitement le partage; ces coordonnées sont conservées avec sa demande.
+Les sept migrations sont dans `supabase/migrations/`. Elles créent le modèle plateforme, les workflows client/garagiste, l’annulation et l’expiration des demandes, la localisation d’inscription, l’inbox propriétaire, les filtres multi-spécialités, puis le contrôle des garages par téléphone et présence sur place. La migration d’expiration nécessite `pg_cron`, disponible dans Supabase. Les demandes ne conservent une position précise que si le client coche explicitement le partage.
 
-Pour l’activer : crée un projet Supabase, vérifie que PostGIS est installé dans le schéma `extensions` et active `pg_cron`, puis applique les migrations avec Supabase CLI ou l’éditeur SQL du tableau de bord. Active la confirmation des e-mails et configure les URL Auth. Fournis `SUPABASE_URL` et la clé publique `publishable` au lancement; ne mets jamais une clé `service_role` dans Flutter ni dans Git. La modération permet de valider/refuser les garages et de traiter les signalements; elle exige un claim `app_metadata.role=admin`, attribué uniquement par un environnement de confiance (jamais par le client mobile). Un refus documenté renvoie automatiquement la fiche en attente après correction d’un champ substantiel. Les clés et le déploiement restent propres à l’environnement.
+Pour l’activer : crée un projet Supabase, vérifie que PostGIS est installé dans le schéma `extensions` et active `pg_cron`, puis applique les migrations dans l’ordre avec Supabase CLI ou l’éditeur SQL du tableau de bord. Active la confirmation des e-mails et configure les URL Auth. Fournis `SUPABASE_URL` et la clé publique `publishable` au lancement; ne mets jamais une clé `service_role` dans Flutter ni dans Git. La modération exige le claim `app_metadata.role=admin`, attribué uniquement par un environnement de confiance. Un refus documenté renvoie automatiquement la fiche en attente après correction d’un champ substantiel.
+
+### Vérification automatique des garages
+
+Le parcours garagiste demande un code SMS via la fonction Edge `garage-phone-verification`, qui appelle Twilio Verify côté serveur. Le code n’est jamais généré ni validé par l’application Flutter. Le propriétaire doit ensuite fournir un signal GPS depuis le garage. La base calcule elle-même la distance entre ce signal et l’épingle enregistrée; les seuils actuels sont 150 m maximum et une précision déclarée de 50 m maximum. Un signal de présence datant de plus de 24 h est considéré obsolète lors du prochain contrôle.
+
+Les contrôles marquent aussi les numéros réutilisés par un autre propriétaire, les garages au nom similaire à moins de 250 m et l’absence de photo. L’interface de modération présente le résultat et les motifs pour aider au tri. Un statut automatique `passed` signifie uniquement que les signaux configurés ont passé leurs seuils; il ne publie pas la fiche. La validation finale reste humaine.
+
+Pour activer ce flux sur un projet Supabase :
+
+1. Crée un service Twilio Verify et configure son nom affiché comme `Garage Finder`.
+2. Dans **Supabase Dashboard > Edge Functions > Secrets**, ajoute `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` et `TWILIO_VERIFY_SERVICE_SID`. Ne partage pas ces valeurs et ne les ajoute jamais à Flutter ou à Git.
+3. Avec Supabase CLI, lie le dépôt au projet : `supabase link --project-ref <project-ref>`.
+4. Déploie la fonction : `supabase functions deploy garage-phone-verification`.
+5. Applique `supabase/migrations/202610090002_garage_phone_verification.sql` via l’éditeur SQL du dashboard, ou avec `supabase db push` si l’historique des migrations CLI est déjà synchronisé avec ce projet.
+
+Cette séquence déploie la fonction avant d’activer dans PostgreSQL l’obligation de vérifier le téléphone. Les demandes de code sont limitées à un envoi par minute et trois par heure, par compte et par numéro. Le numéro doit être au format international E.164 (par exemple `+229...`). Les comptes Twilio d’essai peuvent limiter l’envoi aux numéros destinataires préalablement vérifiés chez Twilio.
+
+Ces contrôles augmentent la confiance mais ne prouvent pas, à eux seuls, l’existence juridique du garage. La détection des positions simulées est une défense côté application, pas une garantie contre un client modifié; une photo peut également être trompeuse. Pour une vérification légale plus forte, un modérateur doit demander et examiner des justificatifs fiables selon les règles applicables localement.
 
 Une fiche est visible dans les résultats publics uniquement après modération. Les changements importants d’une fiche publiée la remettent en attente de validation. Les comptes garagistes ne modifient que leurs fiches; le propriétaire et le statut de modération sont protégés par la base. Les demandes ont des transitions de statut contrôlées côté SQL et génèrent des notifications dans l’app via Supabase Realtime. Les notifications push quand l’application est fermée demandent encore une configuration Firebase/FCM propre à Android et iOS.
 

@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Votre position sert uniquement à trouver les garages proches et n’est pas enregistrée.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choisissez une photo pour illustrer la fiche de votre garage.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

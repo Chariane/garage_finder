@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../core/localization/app_localizations.dart';
+import '../utils/google_maps_link.dart';
 
 @immutable
 class LocationSelection {
@@ -24,9 +26,19 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
   final _city = TextEditingController();
   final _latitude = TextEditingController();
   final _longitude = TextEditingController();
-  final _geocoding = Geocoding(locale: const Locale('fr', 'BJ'));
+  final _mapLink = TextEditingController();
+  Geocoding? _geocoding;
   String? _error;
   bool _loading = false;
+
+  Geocoding? get _platformGeocoding {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return null;
+    }
+    return _geocoding ??= Geocoding(locale: const Locale('fr', 'BJ'));
+  }
 
   @override
   void dispose() {
@@ -34,6 +46,7 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
     _city.dispose();
     _latitude.dispose();
     _longitude.dispose();
+    _mapLink.dispose();
     super.dispose();
   }
 
@@ -78,6 +91,11 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
       setState(() => _error = l10n.t('addressRequired'));
       return;
     }
+    final geocoding = _platformGeocoding;
+    if (geocoding == null) {
+      setState(() => _error = l10n.t('addressLookupUnavailable'));
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -88,7 +106,7 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
         _city.text.trim(),
         'Benin',
       ].where((part) => part.isNotEmpty).join(', ');
-      final results = await _geocoding.locationFromAddress(
+      final results = await geocoding.locationFromAddress(
         query,
         locale: const Locale('fr', 'BJ'),
       );
@@ -101,6 +119,20 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _importMapLink() {
+    final l10n = AppLocalizations.of(context);
+    final coordinates = GoogleMapsLink.parse(_mapLink.text);
+    if (coordinates == null) {
+      setState(() => _error = l10n.t('invalidMapLink'));
+      return;
+    }
+    setState(() {
+      _latitude.text = coordinates.latitude.toStringAsFixed(6);
+      _longitude.text = coordinates.longitude.toStringAsFixed(6);
+      _error = null;
+    });
   }
 
   void _submit() {
@@ -135,6 +167,25 @@ class _LocationSearchDialogState extends State<LocationSearchDialog> {
               icon: const Icon(Icons.my_location),
               label: Text(l10n.t('useMyLocation')),
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _mapLink,
+              keyboardType: TextInputType.url,
+              decoration: InputDecoration(
+                labelText: l10n.t('googleMapsLink'),
+                helperText: l10n.t('googleMapsLinkHint'),
+                prefixIcon: const Icon(Icons.link),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _loading ? null : _importMapLink,
+                icon: const Icon(Icons.map_outlined),
+                label: Text(l10n.t('useMapLink')),
+              ),
+            ),
+            const Divider(height: 20),
             const SizedBox(height: 12),
             TextField(
               controller: _address,

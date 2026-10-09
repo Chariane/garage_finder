@@ -93,6 +93,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       );
     }
     return DefaultTabController(
+      initialIndex: auth.isGarageOwner ? 1 : 0,
       length: 2,
       child: Scaffold(
         appBar: AppBar(

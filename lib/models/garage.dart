@@ -25,6 +25,10 @@ class Garage {
   final bool isVerified;
   final String reviewStatus;
   final String moderationNote;
+  final DateTime? phoneVerifiedAt;
+  final DateTime? onSiteVerifiedAt;
+  final String automatedReviewStatus;
+  final List<String> automatedReviewReasons;
   final String responseTime;
   final String priceLevel;
   final List<String> services;
@@ -53,6 +57,10 @@ class Garage {
     required this.isVerified,
     this.reviewStatus = 'approved',
     this.moderationNote = '',
+    this.phoneVerifiedAt,
+    this.onSiteVerifiedAt,
+    this.automatedReviewStatus = 'not_checked',
+    this.automatedReviewReasons = const [],
     required this.responseTime,
     required this.priceLevel,
     required this.services,
@@ -94,6 +102,18 @@ class Garage {
           map['reviewStatus'] as String? ??
           (_asBool(map['isVerified']) ? 'approved' : 'pending'),
       moderationNote: map['moderationNote'] as String? ?? '',
+      phoneVerifiedAt: map['phoneVerifiedAt'] is String
+          ? DateTime.tryParse(map['phoneVerifiedAt']! as String)
+          : null,
+      onSiteVerifiedAt: map['onSiteVerifiedAt'] is String
+          ? DateTime.tryParse(map['onSiteVerifiedAt']! as String)
+          : null,
+      automatedReviewStatus:
+          map['automatedReviewStatus'] as String? ?? 'not_checked',
+      automatedReviewReasons:
+          (map['automatedReviewReasons'] as List<dynamic>? ?? const [])
+              .whereType<String>()
+              .toList(),
       responseTime: map['responseTime']! as String,
       priceLevel: map['priceLevel']! as String,
       services: services,
@@ -141,6 +161,18 @@ class Garage {
           map['is_verified'] == true || map['review_status'] == 'approved',
       reviewStatus: map['review_status'] as String? ?? 'approved',
       moderationNote: map['moderation_note'] as String? ?? '',
+      phoneVerifiedAt: map['phone_verified_at'] is String
+          ? DateTime.tryParse(map['phone_verified_at']! as String)
+          : null,
+      onSiteVerifiedAt: map['on_site_verified_at'] is String
+          ? DateTime.tryParse(map['on_site_verified_at']! as String)
+          : null,
+      automatedReviewStatus:
+          map['automated_review_status'] as String? ?? 'not_checked',
+      automatedReviewReasons:
+          (map['automated_review_reasons'] as List<dynamic>? ?? const [])
+              .whereType<String>()
+              .toList(),
       responseTime: map['response_time_minutes'] is num
           ? '${(map['response_time_minutes'] as num).toInt()} min'
           : map['response_time'] as String? ?? '',
@@ -273,6 +305,10 @@ class Garage {
     bool? isVerified,
     String? reviewStatus,
     String? moderationNote,
+    DateTime? phoneVerifiedAt,
+    DateTime? onSiteVerifiedAt,
+    String? automatedReviewStatus,
+    List<String>? automatedReviewReasons,
     String? responseTime,
     String? priceLevel,
     List<String>? services,
@@ -302,6 +338,12 @@ class Garage {
       isVerified: isVerified ?? this.isVerified,
       reviewStatus: reviewStatus ?? this.reviewStatus,
       moderationNote: moderationNote ?? this.moderationNote,
+      phoneVerifiedAt: phoneVerifiedAt ?? this.phoneVerifiedAt,
+      onSiteVerifiedAt: onSiteVerifiedAt ?? this.onSiteVerifiedAt,
+      automatedReviewStatus:
+          automatedReviewStatus ?? this.automatedReviewStatus,
+      automatedReviewReasons:
+          automatedReviewReasons ?? this.automatedReviewReasons,
       responseTime: responseTime ?? this.responseTime,
       priceLevel: priceLevel ?? this.priceLevel,
       services: services ?? this.services,
@@ -345,6 +387,10 @@ class Garage {
         other.isVerified == isVerified &&
         other.reviewStatus == reviewStatus &&
         other.moderationNote == moderationNote &&
+        other.phoneVerifiedAt == phoneVerifiedAt &&
+        other.onSiteVerifiedAt == onSiteVerifiedAt &&
+        other.automatedReviewStatus == automatedReviewStatus &&
+        listEquals(other.automatedReviewReasons, automatedReviewReasons) &&
         other.responseTime == responseTime &&
         other.priceLevel == priceLevel &&
         listEquals(other.services, services) &&
@@ -375,6 +421,10 @@ class Garage {
     isVerified,
     reviewStatus,
     moderationNote,
+    phoneVerifiedAt,
+    onSiteVerifiedAt,
+    automatedReviewStatus,
+    Object.hashAll(automatedReviewReasons),
     responseTime,
     priceLevel,
     Object.hashAll(services),
